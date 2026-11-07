@@ -1,0 +1,157 @@
+From b384e10bed7bbea78b514399773b3eb33c06136a Mon Sep 17 00:00:00 2001
+From: Dalton Singleton <blumoon94@gmail.com>
+Date: Sat, 7 Nov 2026 16:20:00 -0500
+Subject: [PATCH 1/2] Add Haiku platform support for Stardew Valley port
+
+Haiku reports 'Haiku' from uname; MonoGame previously classified any
+non-Linux Unix as macOS, so it tried to load .dylib libraries and
+/usr/lib/libSystem.dylib. Add OS.Haiku, a haiku-x64 RID, dlopen/dlsym
+via libroot.so (Haiku has no libdl), and use the ELF sonames
+libSDL2-2.0.so.0 / libopenal.so.1 on Haiku.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01AVRp8nockFeWgKbb4pQJh9
+---
+ MonoGame.Framework/Platform/Audio/OpenAL.cs   |  2 +-
+ MonoGame.Framework/Platform/SDL/SDL2.cs       |  2 +-
+ .../Platform/SDL/SDLGameWindow.cs             |  2 +-
+ .../Platform/Utilities/CurrentPlatform.cs     | 22 +++++++++++++++++--
+ .../Platform/Utilities/FuncLoader.Desktop.cs  | 15 +++++++++++++
+ 5 files changed, 38 insertions(+), 5 deletions(-)
+
+diff --git a/MonoGame.Framework/Platform/Audio/OpenAL.cs b/MonoGame.Framework/Platform/Audio/OpenAL.cs
+index e17f14a3..28f5429d 100644
+--- a/MonoGame.Framework/Platform/Audio/OpenAL.cs
++++ b/MonoGame.Framework/Platform/Audio/OpenAL.cs
+@@ -198,7 +198,7 @@ namespace MonoGame.OpenAL
+ #if DESKTOPGL
+             if (CurrentPlatform.OS == OS.Windows)
+                 return FuncLoader.LoadLibraryExt("soft_oal.dll");
+-            else if (CurrentPlatform.OS == OS.Linux)
++            else if (CurrentPlatform.UsesElfSonames)
+                 return FuncLoader.LoadLibraryExt("libopenal.so.1");
+             else if (CurrentPlatform.OS == OS.MacOSX)
+                 return FuncLoader.LoadLibraryExt("libopenal.1.dylib");
+diff --git a/MonoGame.Framework/Platform/SDL/SDL2.cs b/MonoGame.Framework/Platform/SDL/SDL2.cs
+index 8e1929c5..c4139944 100644
+--- a/MonoGame.Framework/Platform/SDL/SDL2.cs
++++ b/MonoGame.Framework/Platform/SDL/SDL2.cs
+@@ -17,7 +17,7 @@ internal static class Sdl
+     {
+         if (CurrentPlatform.OS == OS.Windows)
+             return FuncLoader.LoadLibraryExt("SDL2.dll");
+-        else if (CurrentPlatform.OS == OS.Linux)
++        else if (CurrentPlatform.UsesElfSonames)
+             return FuncLoader.LoadLibraryExt("libSDL2-2.0.so.0");
+         else if (CurrentPlatform.OS == OS.MacOSX)
+             return FuncLoader.LoadLibraryExt("libSDL2-2.0.0.dylib");
+diff --git a/MonoGame.Framework/Platform/SDL/SDLGameWindow.cs b/MonoGame.Framework/Platform/SDL/SDLGameWindow.cs
+index 85481453..850c95de 100644
+--- a/MonoGame.Framework/Platform/SDL/SDLGameWindow.cs
++++ b/MonoGame.Framework/Platform/SDL/SDLGameWindow.cs
+@@ -147,7 +147,7 @@ namespace Microsoft.Xna.Framework
+             var winy = Sdl.Window.PosCentered;
+ 
+             // if we are on Linux, start on the current screen
+-            if (CurrentPlatform.OS == OS.Linux)
++            if (CurrentPlatform.UsesElfSonames)
+             {
+                 winx |= GetMouseDisplay();
+                 winy |= GetMouseDisplay();
+diff --git a/MonoGame.Framework/Platform/Utilities/CurrentPlatform.cs b/MonoGame.Framework/Platform/Utilities/CurrentPlatform.cs
+index 1f57a244..a22635c0 100644
+--- a/MonoGame.Framework/Platform/Utilities/CurrentPlatform.cs
++++ b/MonoGame.Framework/Platform/Utilities/CurrentPlatform.cs
+@@ -12,6 +12,7 @@ namespace MonoGame.Framework.Utilities
+         Windows,
+         Linux,
+         MacOSX,
++        Haiku,
+         Unknown
+     }
+ 
+@@ -50,8 +51,14 @@ namespace MonoGame.Framework.Utilities
+                     {
+                         buf = Marshal.AllocHGlobal(8192);
+ 
+-                        if (uname(buf) == 0 && Marshal.PtrToStringAnsi(buf) == "Linux")
+-                            _os = OS.Linux;
++                        if (uname(buf) == 0)
++                        {
++                            var sysname = Marshal.PtrToStringAnsi(buf);
++                            if (sysname == "Linux")
++                                _os = OS.Linux;
++                            else if (sysname == "Haiku")
++                                _os = OS.Haiku;
++                        }
+                     }
+                     catch
+                     {
+@@ -80,6 +87,15 @@ namespace MonoGame.Framework.Utilities
+             }
+         }
+ 
++        /// <summary>
++        /// True on Unix systems that use ELF shared objects with Linux-style
++        /// sonames (Linux, Haiku).
++        /// </summary>
++        public static bool UsesElfSonames
++        {
++            get { return OS == OS.Linux || OS == OS.Haiku; }
++        }
++
+         public static string Rid
+         {
+             get
+@@ -92,6 +108,8 @@ namespace MonoGame.Framework.Utilities
+                     return "linux-x64";
+                 else if (CurrentPlatform.OS == OS.MacOSX)
+                     return "osx";
++                else if (CurrentPlatform.OS == OS.Haiku)
++                    return "haiku-x64";
+                 else
+                     return "unknown";
+             }
+diff --git a/MonoGame.Framework/Platform/Utilities/FuncLoader.Desktop.cs b/MonoGame.Framework/Platform/Utilities/FuncLoader.Desktop.cs
+index 3f5427e6..4dda6492 100644
+--- a/MonoGame.Framework/Platform/Utilities/FuncLoader.Desktop.cs
++++ b/MonoGame.Framework/Platform/Utilities/FuncLoader.Desktop.cs
+@@ -33,6 +33,16 @@ namespace MonoGame.Framework.Utilities
+             public static extern IntPtr dlsym(IntPtr handle, string symbol);
+         }
+         
++        // On Haiku, dlopen/dlsym are provided by libroot.so (there is no libdl).
++        private class Haiku
++        {
++            [DllImport("libroot.so")]
++            public static extern IntPtr dlopen(string path, int flags);
++
++            [DllImport("libroot.so")]
++            public static extern IntPtr dlsym(IntPtr handle, string symbol);
++        }
++
+         private const int RTLD_LAZY = 0x0001;
+ 
+         public static IntPtr LoadLibraryExt(string libname)
+@@ -84,6 +94,9 @@ namespace MonoGame.Framework.Utilities
+             if (CurrentPlatform.OS == OS.MacOSX)
+                 return OSX.dlopen(libname, RTLD_LAZY);
+ 
++            if (CurrentPlatform.OS == OS.Haiku)
++                return Haiku.dlopen(libname, RTLD_LAZY);
++
+             return Linux.dlopen(libname, RTLD_LAZY);
+         }
+ 
+@@ -95,6 +108,8 @@ namespace MonoGame.Framework.Utilities
+                 ret = Windows.GetProcAddress(library, function);
+             else if (CurrentPlatform.OS == OS.MacOSX)
+                 ret = OSX.dlsym(library, function);
++            else if (CurrentPlatform.OS == OS.Haiku)
++                ret = Haiku.dlsym(library, function);
+             else
+                 ret = Linux.dlsym(library, function);
+ 
+-- 
+2.43.0
+
