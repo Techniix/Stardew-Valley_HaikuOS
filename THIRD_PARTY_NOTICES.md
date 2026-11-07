@@ -15,7 +15,9 @@ Other components have their own licenses:
 | NVorbis, StbImageSharp, StbImageWriteSharp | MonoGame third-party sources, fetched at build time | their own licenses (MIT) |
 | DepotDownloader (SteamRE) | downloaded by `get-game-steam.sh` at run time (pinned version + SHA-256); **not** included in this repo or package | GPL-2.0, ships its own `LICENSE` |
 | .NET for Haiku and its installer (trungnt2910/dotnet-builds) | downloaded by `setup.sh` at run time; not included | .NET is MIT; see that repository |
-| Harmony, GL4ES | used only by the PortMaster package | see `.../licenses/` |
+| SMAPI (Pathoschild) | bundled in the Haiku package (`tools/SMAPIBundle/`), fetched at build time with a pinned SHA-256 | LGPL-3.0, shipped as `licenses/LICENSE.SMAPI.txt` |
+| Harmony (Pardeike), part of SMAPI | bundled with SMAPI | MIT, `licenses/LICENSE.Harmony.txt` |
+| GL4ES | used only by the PortMaster package | see `.../licenses/` |
 
 The Ms-PL requires that any distribution of MonoGame source code, or of the
 patches above, keeps the Ms-PL notice. Binary distributions must use a license

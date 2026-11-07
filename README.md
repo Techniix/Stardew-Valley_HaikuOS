@@ -44,7 +44,7 @@ this project aims to make it repeatable and robust:
 | Game build | GOG | Windows Steam or GOG (1.6 mainline) |
 | Steam / Windows natives | Not handled | Stub/shim libraries |
 | Audio | Bundled MonoGame audio, unconfirmed | Fork with OpenAL fixes (loop-state reset, effect filtering, dedicated audio worker) |
-| Mods (SMAPI) | No | Planned, via the PortMaster SMAPI bundling |
+| Mods (SMAPI) | No | Bundled SMAPI, turned on automatically when `Mods/` has mods (see [Mods](#mods-smapi)) |
 | Source | Not published | This repository, MIT |
 | Getting the game | Copy files over from another machine | Download from Steam directly on Haiku (`get-game-steam.sh`), or copy |
 | Install | Follow forum steps | `setup.sh` installs packages, .NET, shims, game and Deskbar entry; `.hpkg` planned |
@@ -97,6 +97,105 @@ GOG or already-copied files: put your Stardew Valley folder's contents (with
 `Stardew Valley.dll`) into `gamedata/` and run `./setup.sh --no-game`.
 See [`haiku/INSTALL.txt`](haiku/INSTALL.txt).
 
+## Mods (SMAPI)
+
+### How it works in this port
+
+[SMAPI](https://smapi.io/) is the standard Stardew Valley mod loader. Normally
+you run its installer, which copies files into the game folder and replaces the
+launcher. That installer doesn't support Haiku, so this port handles it itself:
+
+1. **SMAPI is bundled.** The package contains SMAPI 4.5.2 (LGPL-3.0) in
+   `tools/SMAPIBundle/`, taken from the official installer's Linux payload.
+   Haiku is a Unix system, and SMAPI treats it as Linux.
+2. **Mode is chosen at each launch.** `StardewValley.sh` looks in `Mods/`. If it
+   contains any mod besides SMAPI's own *Console Commands* and *Save Backup*,
+   the game starts through SMAPI. Otherwise it starts vanilla. You never run
+   an installer and never switch launchers.
+3. **The patcher installs SMAPI into the game.** In SMAPI mode, the Haiku
+   patcher copies SMAPI into `gamedata/`, points SMAPI's
+   `deps.json`/`runtimeconfig.json` at the Haiku .NET runtime, and aligns the
+   game's assembly versions with what SMAPI expects. It also fixes up mod
+   DLLs in `Mods/` (architecture flags) so they load on this runtime.
+4. **Re-patching is automatic.** The launcher re-runs the patcher whenever
+   you switch between vanilla and SMAPI, update the game or .NET, or add or
+   change anything in `Mods/`.
+5. **SMAPI runs inside the launcher's shell.** Its console output goes to the
+   Terminal and to `log.txt`, not a separate terminal window. SMAPI also keeps
+   its usual log in `~/.config/StardewValley/ErrorLogs/SMAPI-latest.txt`.
+   [smapi.io/log](https://smapi.io/log) can parse it.
+6. **The patched MonoGame stays in place.** SMAPI loads the same
+   Haiku-patched `MonoGame.Framework.dll` as vanilla mode.
+
+What works with what:
+
+| Mod type | Expected to work? |
+|---|---|
+| Content Patcher packs, Json Assets, other content-only mods | Yes, they're pure data |
+| C# SMAPI mods (most mods on Nexus) | Usually: they're platform-neutral .NET |
+| Mods that use Harmony to patch game code | Untested on Haiku. See note below |
+| Mods that ship Windows/Linux native libraries (`.dll`/`.so` with C code) | No |
+| Mods that depend on Steam features or on Stardew's exact Steam MonoGame build | May fail |
+
+> **Harmony on Haiku is the biggest unknown.** Harmony rewrites game methods
+> while the game is running, which relies on low-level, OS-specific tricks
+> (MonoMod). It works on Linux, macOS and Windows; on Haiku it hasn't been
+> tested yet. SMAPI itself uses Harmony, so if SMAPI fails to start on
+> Haiku, this is the likely cause. Please report it with your SMAPI log.
+
+### Setting up mods
+
+1. **Run the game once in vanilla mode** so the base patching is done:
+   `./StardewValley.sh`
+2. **Download mods** from [Nexus Mods](https://www.nexusmods.com/stardewvalley)
+   or [ModDrop](https://www.moddrop.com/stardew-valley). Pick versions made for
+   Stardew Valley 1.6 and SMAPI 4.x. Get the main download, not the
+   Windows/Mac "installer" variants.
+3. **Unzip each mod into `Mods/`** in the port folder (not into `gamedata/`).
+   Each mod needs its own folder containing a `manifest.json`:
+   ```
+   StardewValley/
+   └── Mods/
+       ├── ContentPatcher/
+       │   ├── manifest.json
+       │   └── ContentPatcher.dll
+       └── [CP] Some Content Pack/
+           ├── manifest.json
+           └── content.json
+   ```
+   Folders can be nested one level for organisation; SMAPI searches subfolders.
+4. **Install dependencies.** Many mods need a framework mod (Content Patcher,
+   SpaceCore, Generic Mod Config Menu...). The mod's page lists them; SMAPI
+   also names missing ones in its log.
+5. **Launch normally** (`./StardewValley.sh` or the Deskbar entry). The first
+   SMAPI launch takes a little longer while the game is re-patched. You should
+   see the SMAPI banner and the loaded mods in the Terminal, and a mod count on
+   the title screen.
+
+Useful switches:
+
+```sh
+SDV_VANILLA=1 ./StardewValley.sh       # play unmodded without removing Mods/
+SDV_FORCE_SMAPI=1 ./StardewValley.sh   # start SMAPI even with no extra mods
+SDV_FORCE_PATCH=1 ./StardewValley.sh   # redo all patching
+```
+
+**Removing mods:** delete their folders from `Mods/`. Once only SMAPI's
+built-in mods are left, the launcher goes back to vanilla automatically.
+
+**Saves:** vanilla and SMAPI share the same save folder
+(`~/.config/StardewValley/Saves`). SMAPI's *Save Backup* mod zips your saves into
+`Mods/SaveBackup/backups` on each launch. Still, back up saves yourself before
+trying large mods.
+
+**Troubleshooting:**
+- *A mod doesn't load:* check the SMAPI log for "skipped mods"; usually it's a
+  missing dependency or a version mismatch.
+- *SMAPI crashes on startup:* run with `SDV_VANILLA=1` to confirm the base game
+  works, then attach `log.txt` and `SMAPI-latest.txt` to an issue.
+- *"Native library not found" from a mod:* that mod ships platform-specific
+  native code and won't work on Haiku.
+
 ## Build
 
 The managed parts are platform-neutral and can be built on Linux (or on Haiku
@@ -114,7 +213,7 @@ Unzip on Haiku and run `./build-native.sh` there.
 ## Roadmap
 
 - [ ] First boot on real hardware: title screen, audio, input
-- [ ] SMAPI mod support
+- [ ] Confirm SMAPI/Harmony on real Haiku hardware
 - [ ] `.hpkg` with icon and Deskbar entry, HaikuDepot submission
 - [ ] GOG downloader (e.g. lgogdownloader) alongside Steam
 - [ ] Gamepad testing
