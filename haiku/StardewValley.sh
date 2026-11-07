@@ -16,6 +16,16 @@
 set -u
 
 GAMEDIR="$(cd -- "$(dirname -- "$(readlink -f -- "$0")")" && pwd)"
+
+# Refuse to run from the Trash, e.g. a Terminal still sitting in a folder
+# that was moved there after a newer package was unzipped elsewhere.
+case "$GAMEDIR" in
+  */trash/*|*/Trash/*)
+    echo "This copy is in the Trash ($GAMEDIR)." >&2
+    echo "You're probably in an old folder. cd to the new StardewValley folder and run it again." >&2
+    exit 1 ;;
+esac
+[ -f "$GAMEDIR/VERSION" ] && echo "Stardew Valley for Haiku $(cat "$GAMEDIR/VERSION")"
 cd "$GAMEDIR" || exit 1
 exec > >(tee "$GAMEDIR/log.txt") 2>&1
 

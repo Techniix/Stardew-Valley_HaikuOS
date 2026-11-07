@@ -101,6 +101,7 @@ cp "$ROOT/portmaster_stardewvalley_mainline/stardewvalleymainline/tools/smapi-co
 
 chmod +x "$OUT"/*.sh
 touch "$OUT/gamedata/.keep" "$OUT/Mods/.keep"
+git -C "$ROOT" describe --always --dirty --tags > "$OUT/VERSION" 2>/dev/null || echo unknown > "$OUT/VERSION"
 
 ( cd "$ROOT/haiku/out" && rm -f StardewValley-haiku.zip && zip -qr StardewValley-haiku.zip StardewValley )
 echo "Done: $ROOT/haiku/out/StardewValley-haiku.zip"
