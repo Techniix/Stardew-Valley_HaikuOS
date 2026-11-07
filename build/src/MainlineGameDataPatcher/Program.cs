@@ -3,7 +3,14 @@ using System.Text.Json.Nodes;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 
-const string RuntimePackName = "runtimepack.Microsoft.NETCore.App.Runtime.win-x64/6.0.32";
+// The game bundles a self-contained Windows runtime pack (e.g. ".../6.0.32");
+// match any version so other game builds are handled too.
+const string RuntimePackPrefix = "runtimepack.Microsoft.NETCore.App.Runtime.win-x64/";
+
+if (args.Length == 2 && args[0] == "--patch-steamkit")
+{
+    return PatchSteamKit(args[1]);
+}
 
 if (!TryParseArguments(args, out var gameDir, out var overlayDir, out var smapiBundleDir, out var smapiPatchAssembly, out var modsDir))
 {
@@ -115,13 +122,17 @@ static void PruneRuntimePackManagedFiles(string depsPath, string gameDir)
         return;
     }
 
-    var runtimePackRuntime = root["targets"]?[runtimeTarget]?[RuntimePackName]?["runtime"]?.AsObject();
-    if (runtimePackRuntime is null)
+    if (root["targets"]?[runtimeTarget] is not JsonObject target)
     {
         return;
     }
 
-    foreach (var runtimeFile in runtimePackRuntime)
+    var runtimePackFiles = target
+        .Where(entry => entry.Key.StartsWith(RuntimePackPrefix, StringComparison.Ordinal))
+        .SelectMany(entry => entry.Value?["runtime"]?.AsObject() ?? new JsonObject())
+        .ToList();
+
+    foreach (var runtimeFile in runtimePackFiles)
     {
         var filePath = Path.Combine(gameDir, runtimeFile.Key);
         if (File.Exists(filePath))
@@ -340,7 +351,10 @@ static void PatchDeps(string depsPath)
             continue;
         }
 
-        targetObject.Remove(RuntimePackName);
+        foreach (var packName in targetObject.Select(entry => entry.Key).Where(name => name.StartsWith(RuntimePackPrefix, StringComparison.Ordinal)).ToList())
+        {
+            targetObject.Remove(packName);
+        }
         foreach (var libraryEntry in targetObject.ToList())
         {
             if (libraryEntry.Value is not JsonObject libraryObject)
@@ -1290,6 +1304,52 @@ static JsonObject LoadJsonObject(string path)
 static void WriteJsonObject(string path, JsonObject root)
 {
     File.WriteAllText(path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
+}
+
+// SteamKit2 (used by DepotDownloader) derives a machine ID from the first
+// network adapter's MAC address. Its fallback only catches
+// NetworkInformationException, but Haiku's .NET throws
+// PlatformNotSupportedException from NetworkInterface.GetAllNetworkInterfaces().
+// Widen that catch to System.Exception so SteamKit uses its built-in fallback.
+static int PatchSteamKit(string steamKitPath)
+{
+    steamKitPath = Path.GetFullPath(steamKitPath);
+    if (!File.Exists(steamKitPath))
+    {
+        Console.Error.WriteLine($"SteamKit2.dll not found: {steamKitPath}");
+        return 1;
+    }
+
+    var resolver = new DefaultAssemblyResolver();
+    resolver.AddSearchDirectory(Path.GetDirectoryName(steamKitPath)!);
+    using var assembly = AssemblyDefinition.ReadAssembly(steamKitPath, new ReaderParameters
+    {
+        InMemory = true,
+        ReadSymbols = false,
+        AssemblyResolver = resolver,
+    });
+    var module = assembly.MainModule;
+    var provider = module.GetType("SteamKit2.DefaultMachineInfoProvider")
+        ?? throw new InvalidOperationException("SteamKit2.DefaultMachineInfoProvider not found");
+    var method = provider.Methods.FirstOrDefault(m => m.Name == "GetMacAddress" && m.HasBody)
+        ?? throw new InvalidOperationException("DefaultMachineInfoProvider.GetMacAddress not found");
+
+    var handlers = method.Body.ExceptionHandlers.Where(h => h.HandlerType == ExceptionHandlerType.Catch).ToList();
+    if (handlers.Any(h => h.CatchType?.FullName == "System.Exception"))
+    {
+        Console.WriteLine("SteamKit2 already patched for Haiku.");
+        return 0;
+    }
+
+    var target = handlers.FirstOrDefault(h => h.CatchType?.FullName == "System.Net.NetworkInformation.NetworkInformationException")
+        ?? throw new InvalidOperationException("Expected NetworkInformationException handler not found in GetMacAddress");
+    target.CatchType = new TypeReference("System", "Exception", module, module.TypeSystem.CoreLibrary);
+
+    var tempPath = steamKitPath + ".haiku.tmp";
+    assembly.Write(tempPath, new WriterParameters { WriteSymbols = false });
+    File.Move(tempPath, steamKitPath, overwrite: true);
+    Console.WriteLine("Patched SteamKit2 machine ID fallback for Haiku.");
+    return 0;
 }
 
 static class PortConfig
