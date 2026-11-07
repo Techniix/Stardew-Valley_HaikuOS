@@ -62,6 +62,7 @@ arch="$(getarch 2>/dev/null || uname -m)"
 step "1/5 System packages"
 packages=(
   libsdl2 openal                                   # used by MonoGame
+  libsdl2_devel                                    # to build the gamepad tool
   gcc haiku_devel                                  # to build the native shims
   gmp krb5 libiconv llvm12_libunwind mpfr          # needed by .NET on Haiku
   jq curl unzip                                    # used by the installers
@@ -126,6 +127,22 @@ else
   echo "Copy your Stardew Valley 1.6 folder (the one with 'Stardew Valley.dll',"
   echo "Windows build from Steam or GOG) into:"
   echo "  $GAMEDIR/gamedata/"
+fi
+
+# --- gamepad (optional) ---------------------------------------------------------
+if [ -x "$GAMEDIR/libs/sdv-gamepad" ]; then
+  step "Gamepad (optional)"
+  if SDL_GAMECONTROLLERCONFIG_FILE="$GAMEDIR/gamecontrollerdb.txt" \
+      "$GAMEDIR/libs/sdv-gamepad" list 2>/dev/null | grep -q "NOT mapped"; then
+    echo "A controller is connected but not set up for games yet."
+    if ask "Map it now? (takes about a minute)" y; then
+      "$GAMEDIR/gamepad.sh" || true
+    else
+      echo "You can do it later with ./gamepad.sh"
+    fi
+  else
+    echo "No unmapped controller connected. Run ./gamepad.sh any time to set one up."
+  fi
 fi
 
 # --- 5. Deskbar ----------------------------------------------------------------------------

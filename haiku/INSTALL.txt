@@ -36,6 +36,10 @@ or to play without sound.
 If a download stops progressing, it's restarted automatically after 3 minutes
 and resumes where it left off.
 
+Gamepad: connect it, then run ./gamepad.sh to map it (Haiku's SDL needs a
+mapping before games can use a controller). Connect it before starting
+the game; it isn't detected if plugged in later.
+
 Mods: unzip SMAPI mods into Mods/ (each in its own folder with a
 manifest.json). The launcher starts SMAPI automatically when mods are present.
 

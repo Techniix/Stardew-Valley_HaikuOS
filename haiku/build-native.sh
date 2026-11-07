@@ -47,6 +47,17 @@ if [ "$(uname -s)" = "Haiku" ] && [ -f "$SRC/media_helper.cpp" ]; then
   fi
 fi
 
+# Gamepad mapping tool (needs SDL2 headers: pkgman install libsdl2_devel).
+if [ "$(uname -s)" = "Haiku" ] && [ -f "$SRC/gamepad_tool.c" ]; then
+  echo "  CC sdv-gamepad"
+  sdl_flags="$(sdl2-config --cflags --libs 2>/dev/null || echo -lSDL2)"
+  # shellcheck disable=SC2086
+  if ! gcc -O2 -s -o "$OUT/sdv-gamepad" "$SRC/gamepad_tool.c" $sdl_flags; then
+    echo "warning: sdv-gamepad not built; install libsdl2_devel to set up controllers" >&2
+    rm -f "$OUT/sdv-gamepad"
+  fi
+fi
+
 touch "$OUT/.built"
 
 echo "Native shims written to $OUT"

@@ -189,6 +189,11 @@ cd "$GAMEDIR/gamedata" || exit 1
 # SDL from changing directory. See SDL src/main/haiku/SDL_BeApp.cc.
 export TERM="${TERM:-dumb}"
 
+# Controller mappings recorded by ./gamepad.sh (Haiku's SDL backend needs them).
+if [ -f "$GAMEDIR/gamecontrollerdb.txt" ]; then
+  export SDL_GAMECONTROLLERCONFIG_FILE="$GAMEDIR/gamecontrollerdb.txt"
+fi
+
 retried=0
 while :; do
   log_start=$(wc -l < "$GAMEDIR/log.txt" 2>/dev/null || echo 0)

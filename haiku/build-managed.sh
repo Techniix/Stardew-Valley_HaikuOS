@@ -89,7 +89,7 @@ mkdir -p "$OUT"/{gamedata,overrides/gamedata,tools/MainlineGameDataPatcher,dlls,
 cp "$framework_dll" "$OUT/overrides/gamedata/MonoGame.Framework.dll"
 cp "$WORK/patches/StardewPatches.dll" "$OUT/dlls/StardewPatches.dll"
 cp -R "$WORK/patcher/." "$OUT/tools/MainlineGameDataPatcher/"
-cp "$ROOT/haiku/StardewValley.sh" "$ROOT/haiku/build-native.sh" "$ROOT/haiku/setup.sh" "$ROOT/haiku/get-game-steam.sh" "$OUT/"
+cp "$ROOT/haiku/StardewValley.sh" "$ROOT/haiku/build-native.sh" "$ROOT/haiku/setup.sh" "$ROOT/haiku/get-game-steam.sh" "$ROOT/haiku/gamepad.sh" "$OUT/"
 cp "$ROOT"/build/src/native/*.c "$ROOT"/build/src/native/*.cpp "$OUT/native-src/"
 cp "$ROOT/haiku/INSTALL.txt" "$OUT/"
 cp "$ROOT/LICENSE" "$OUT/licenses/LICENSE.Port.txt"

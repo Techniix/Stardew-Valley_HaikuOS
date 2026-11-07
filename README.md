@@ -8,15 +8,17 @@ and can download your own copy of the game straight from Steam on Haiku.
 (Steam, or the Windows build from GOG).
 
 > **Status: early but working.** Setup, Steam download, updating an
-> existing install and the game itself (with sound) are confirmed on real
-> hardware (Haiku hrev60368, Ryzen 5 7600X, RTX 5070). Not confirmed yet:
-> SMAPI/mods, gamepads, direct-IP multiplayer. Online play via Steam
+> existing install and the game itself (with sound, launched from Terminal
+> or the Deskbar) are confirmed on real hardware (Haiku hrev60368, Ryzen 5
+> 7600X, RTX 5070). Not confirmed yet: SMAPI/mods, gamepads, direct-IP
+> multiplayer. Online play via Steam
 > friends or invite codes isn't possible on Haiku (see
 > [Multiplayer](#multiplayer)). Bug reports with `log.txt` are very welcome.
 
 - [Quick start](#quick-start)
 - [How it works](#how-it-works)
 - [How this differs from other ports](#how-this-differs-from-other-ports)
+- [Gamepads](#gamepads)
 - [Multiplayer](#multiplayer)
 - [Mods (SMAPI)](#mods-smapi)
 - [Troubleshooting](#troubleshooting)
@@ -42,6 +44,7 @@ and can download your own copy of the game straight from Steam on Haiku.
 | 2. .NET | Installs .NET 10 for Haiku ([trungnt2910/dotnet-builds](https://github.com/trungnt2910/dotnet-builds)) into `./dotnet`, unless .NET 9+ is already installed |
 | 3. Native shims | Builds the small C libraries in `libs/` with gcc |
 | 4. Game files | Offers to download the game from Steam (see below), or tells you where to copy it |
+| Gamepad | If a controller is connected but not set up, offers to map it (optional) |
 | 5. Deskbar | Adds a menu entry |
 
 **Downloading from Steam** (`./get-game-steam.sh`, also run by `setup.sh`):
@@ -115,6 +118,7 @@ StardewValley/
 ├── setup.sh              one-time setup
 ├── StardewValley.sh      launcher (vanilla or SMAPI, patches as needed)
 ├── get-game-steam.sh     download/update the game from Steam
+├── gamepad.sh            set up a controller (writes gamecontrollerdb.txt)
 ├── build-native.sh       builds libs/ (called by setup.sh)
 ├── gamedata/             patched game files (yours)
 ├── steam-depot/          untouched Steam download (yours)
@@ -168,6 +172,36 @@ differences:
 - **Setup and game download on the device** instead of copying from a PC.
 - **Build fix:** `bootstrap-monogame-thirdparty.sh` fetches the pinned NVorbis
   commit directly (a shallow clone couldn't check it out).
+
+## Gamepads
+
+SDL's Haiku joystick backend identifies a controller only by a GUID made
+from its name, so no controller on Haiku matches SDL's built-in controller
+database, and the game (which uses SDL's gamepad API) ignores it until it
+has a mapping. `gamepad.sh` records one:
+
+```sh
+./gamepad.sh          # list controllers, then map one
+./gamepad.sh test     # show input exactly as the game will see it
+```
+
+It asks you to press each button and move each stick (wait 10 seconds to
+skip anything your controller doesn't have) and saves the result to
+`gamecontrollerdb.txt` in the package folder. The launcher loads it for the
+game through `SDL_GAMECONTROLLERCONFIG_FILE`. Mappings are keyed on the
+controller's name, so they keep working on any USB port.
+
+Notes:
+
+- Haiku's SDL backend doesn't detect controllers plugged in later. Connect
+  the controller **before** starting the game.
+- The controller has to work in Haiku first: it should appear in
+  **Preferences → Joysticks**. If it doesn't, that's a driver issue, not
+  something the mapping can fix.
+- `setup.sh` builds the tool (`libs/sdv-gamepad`); it needs the
+  `libsdl2_devel` package, which setup installs.
+- Stardew's controls follow the Xbox layout: map by button *position*
+  (bottom face button = A), not by the letter printed on the controller.
 
 ## Multiplayer
 
@@ -300,6 +334,7 @@ trying large mods.
 | "Stardew Valley stopped with an error" | The game itself failed. Attach `log.txt` and `logs/exceptions.txt` to an issue. |
 | Crash in `BTimeSource::GetTime` (debug report) | First check `log.txt` for an `Unhandled exception`; if there is one, that's the real problem and the media crash is a side effect. Otherwise it's the Haiku media kit race. Click **Terminate** in the debugger, then **Restart media & retry** in the launcher's prompt. If it keeps happening: `SDV_RESTART_MEDIA=1 ./StardewValley.sh` restarts them before every launch; `SDV_NO_AUDIO=1` plays without sound. |
 | Game doesn't start | Check `log.txt`. Re-patch with `SDV_FORCE_PATCH=1 ./StardewValley.sh`. Confirm `gamedata/` has `Stardew Valley.dll`. |
+| Controller does nothing in game | Run `./gamepad.sh`. If it says "NOT mapped", map it. If it lists no controller, check **Preferences → Joysticks**. Connect it before starting the game. |
 | Mods misbehave | `SDV_VANILLA=1 ./StardewValley.sh` to rule out the base game, then see [Mods](#mods-smapi). |
 
 Saves live in `~/.config/StardewValley/Saves`.
