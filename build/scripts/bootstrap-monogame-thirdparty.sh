@@ -52,10 +52,13 @@ bootstrap_nvorbis() {
 
   local tmpdir
   tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/nvorbis-bootstrap.XXXXXX")"
-  trap 'rm -rf "$tmpdir"' EXIT
+  trap "rm -rf '$tmpdir'" EXIT
 
-  git clone --depth 1 "$NVORBIS_REPO_URL" "$tmpdir/repo"
-  git -C "$tmpdir/repo" checkout "$NVORBIS_COMMIT" >/dev/null 2>&1
+  # A shallow clone only has the branch tip; fetch the pinned commit itself.
+  git init -q "$tmpdir/repo"
+  git -C "$tmpdir/repo" remote add origin "$NVORBIS_REPO_URL"
+  git -C "$tmpdir/repo" fetch -q --depth 1 origin "$NVORBIS_COMMIT"
+  git -C "$tmpdir/repo" checkout -q FETCH_HEAD
 
   find "$NVORBIS_TARGET" -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null || true
   mkdir -p "$NVORBIS_TARGET"
