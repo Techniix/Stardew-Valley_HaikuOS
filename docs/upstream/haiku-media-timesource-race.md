@@ -26,6 +26,11 @@ and the control thread segfaults in `BTimeSource::GetTime()` reading `fBuf`.
 
 - `fBuf` (rcx) is non-NULL, but no area in the team covers that address, and
   there is no `__cloned_timesource_buf_*` area in the team at all.
+- It also happens during process teardown: in one run the app's main thread
+  had already died from an unhandled .NET exception, and the control thread
+  then crashed the same way while the process was exiting. So nodes being
+  released or time sources being dropped at exit hit the same unprotected
+  window.
 
 ## Analysis (current master)
 

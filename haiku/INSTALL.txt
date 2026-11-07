@@ -44,7 +44,7 @@ which don't exist on Haiku. Use direct IP instead: Co-op > Join > Join LAN
 Game and enter the host's IP. To host, keep "Accept IP connections" on in
 Options and forward UDP port 24642 for internet play.
 
-Logs: log.txt here; SMAPI: ~/.config/StardewValley/ErrorLogs/SMAPI-latest.txt
+Logs: log.txt and logs/exceptions.txt here; SMAPI: ~/.config/StardewValley/ErrorLogs/SMAPI-latest.txt
 Saves: ~/.config/StardewValley/Saves
 
 GOG or copied files: put the contents of your Stardew Valley folder (the one

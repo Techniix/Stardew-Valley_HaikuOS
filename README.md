@@ -82,10 +82,17 @@ platform-neutral .NET, so the game itself doesn't need porting. What it runs
   not in the game: a node's time source object can be freed while its
   playback thread still uses it (details and upstream report:
   [`docs/upstream/haiku-media-timesource-race.md`](docs/upstream/haiku-media-timesource-race.md)).
-  It's timing-dependent, so the launcher changes nothing up front. If the
-  game crashes, it offers to **restart the media services and retry**
+  It's timing-dependent, so the launcher changes nothing up front. It also
+  fires while the process tears down after some *other* failure, so a debug
+  report showing it isn't proof that audio was the cause: the launcher first
+  checks the log for an error from the game itself and reports that instead.
+  For a plain crash, it offers to **restart the media services and retry**
   (a small helper, `libs/sdv-media-helper`, does what Preferences → Media
   does) or to **play without sound**.
+- **Exception log:** `logs/exceptions.txt` records every .NET exception as
+  it's thrown (via `StardewPatches.dll`, loaded before the game), so errors
+  the game wraps (e.g. "Could not load … asset!") keep their real cause.
+  `SDV_EXCEPTION_LOG=0` turns it off.
 - **Game download:** DepotDownloader runs on .NET for Haiku too. Two Haiku
   workarounds are built in:
   - Haiku's .NET can't list network adapters yet, which crashed SteamKit2 (the
@@ -111,6 +118,7 @@ StardewValley/
 ├── overrides/ dlls/ tools/   Haiku MonoGame build, patcher, SMAPI bundle
 ├── licenses/             third-party licenses
 ├── log.txt               output of the last game run
+├── logs/exceptions.txt   every .NET exception from the last run
 └── VERSION               package version (include it in bug reports)
 ```
 
@@ -283,7 +291,8 @@ trying large mods.
 | Download stops progressing | The watchdog restarts it after 3 minutes. If it keeps stalling: `SDV_MAX_DOWNLOADS=2 ./get-game-steam.sh` |
 | Steam Guard asked every time | Answer **Y** to "Remember this Steam login" once. |
 | `PlatformNotSupportedException ... GetAllNetworkInterfaces` | You're running an old package; update it. |
-| Crash in `BTimeSource::GetTime` (debug report) | Haiku media kit race. Click **Terminate** in the debugger, then **Restart media & retry** in the launcher's prompt. If it keeps happening: `SDV_RESTART_MEDIA=1 ./StardewValley.sh` restarts them before every launch; `SDV_NO_AUDIO=1` plays without sound. |
+| "Stardew Valley stopped with an error" | The game itself failed. Attach `log.txt` and `logs/exceptions.txt` to an issue. |
+| Crash in `BTimeSource::GetTime` (debug report) | First check `log.txt` for an `Unhandled exception`; if there is one, that's the real problem and the media crash is a side effect. Otherwise it's the Haiku media kit race. Click **Terminate** in the debugger, then **Restart media & retry** in the launcher's prompt. If it keeps happening: `SDV_RESTART_MEDIA=1 ./StardewValley.sh` restarts them before every launch; `SDV_NO_AUDIO=1` plays without sound. |
 | Game doesn't start | Check `log.txt`. Re-patch with `SDV_FORCE_PATCH=1 ./StardewValley.sh`. Confirm `gamedata/` has `Stardew Valley.dll`. |
 | Mods misbehave | `SDV_VANILLA=1 ./StardewValley.sh` to rule out the base game, then see [Mods](#mods-smapi). |
 

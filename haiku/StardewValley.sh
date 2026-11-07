@@ -166,6 +166,13 @@ fi
 
 # --- run --------------------------------------------------------------------
 export MONOGAME_PATCH="$patch_assembly"
+# First-chance exception log (written by StardewPatches.dll). Keeps the real
+# cause when the game wraps an error. SDV_EXCEPTION_LOG=0 turns it off.
+if [ "${SDV_EXCEPTION_LOG:-}" = 0 ]; then
+  unset SDV_EXCEPTION_LOG
+else
+  export SDV_EXCEPTION_LOG="$GAMEDIR/logs/exceptions.txt"
+fi
 if [ "$launch_mode" = smapi ]; then
   export SMAPI_MODS_PATH="$GAMEDIR/Mods"
   # Keep SMAPI's console output in this terminal / log.txt instead of
@@ -178,9 +185,25 @@ cd "$GAMEDIR/gamedata" || exit 1
 
 retried=0
 while :; do
+  log_start=$(wc -l < "$GAMEDIR/log.txt" 2>/dev/null || echo 0)
   "$DOTNET" "$entry_assembly" "$@"
   status=$?
   echo "Stardew Valley exited with status $status."
+
+  # An unhandled .NET exception means the game itself failed; any media kit
+  # crash in the debug report is then a side effect of the process dying.
+  sleep 1  # let tee flush
+  game_error="$(tail -n +"$((log_start + 1))" "$GAMEDIR/log.txt" 2>/dev/null \
+    | grep -m1 -A1 "^Unhandled exception" | tr '\n' ' ' | cut -c1-300)"
+  if [ "$status" -gt 128 ] && [ -n "$game_error" ]; then
+    echo "The game failed with an error; see log.txt and logs/exceptions.txt."
+    command -v alert >/dev/null 2>&1 && alert --stop "Stardew Valley stopped with an error:
+
+$game_error
+
+Details are in log.txt and logs/exceptions.txt in the game folder. Please include both in a bug report." "OK" >/dev/null
+    break
+  fi
 
   # > 128 means killed by a signal, e.g. a segfault terminated from the
   # Haiku debugger dialog. Offer the media-kit workarounds once.
