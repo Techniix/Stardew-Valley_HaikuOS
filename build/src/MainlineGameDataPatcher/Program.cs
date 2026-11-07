@@ -3,12 +3,11 @@ using System.Text.Json.Nodes;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 
-const string LinuxRuntimeTarget = ".NETCoreApp,Version=v6.0/linux-arm64";
 const string RuntimePackName = "runtimepack.Microsoft.NETCore.App.Runtime.win-x64/6.0.32";
 
 if (!TryParseArguments(args, out var gameDir, out var overlayDir, out var smapiBundleDir, out var smapiPatchAssembly, out var modsDir))
 {
-    Console.Error.WriteLine("Usage: MainlineGameDataPatcher --game-dir <path> --overlay-dir <path> [--smapi-bundle-dir <path>] [--smapi-patch-assembly <path>] [--mods-dir <path>]");
+    Console.Error.WriteLine("Usage: MainlineGameDataPatcher --game-dir <path> --overlay-dir <path> [--smapi-bundle-dir <path>] [--smapi-patch-assembly <path>] [--mods-dir <path>] [--runtime-target <tfm/rid>] [--framework-version <version>] [--roll-forward <policy>] [--profile handheld|desktop]");
     return 1;
 }
 
@@ -71,6 +70,24 @@ static bool TryParseArguments(string[] args, out string gameDir, out string over
                 break;
             case "--mods-dir" when i + 1 < args.Length:
                 modsDir = args[++i];
+                break;
+            case "--runtime-target" when i + 1 < args.Length:
+                PortConfig.RuntimeTarget = args[++i];
+                break;
+            case "--framework-version" when i + 1 < args.Length:
+                PortConfig.FrameworkVersion = args[++i];
+                break;
+            case "--roll-forward" when i + 1 < args.Length:
+                PortConfig.RollForward = args[++i];
+                break;
+            case "--profile" when i + 1 < args.Length:
+                var profile = args[++i];
+                if (profile is not ("handheld" or "desktop"))
+                {
+                    return false;
+                }
+
+                PortConfig.Desktop = profile == "desktop";
                 break;
             default:
                 return false;
@@ -287,6 +304,18 @@ static void PatchRuntimeConfig(string runtimeConfigPath)
         runtimeOptions["framework"] = framework;
     }
 
+    // Platforms without a .NET 6 build (e.g. Haiku) run the game on a newer
+    // runtime; pin the framework version and roll-forward policy explicitly.
+    if (!string.IsNullOrWhiteSpace(PortConfig.FrameworkVersion))
+    {
+        framework["version"] = PortConfig.FrameworkVersion;
+    }
+
+    if (!string.IsNullOrWhiteSpace(PortConfig.RollForward))
+    {
+        runtimeOptions["rollForward"] = PortConfig.RollForward;
+    }
+
     WriteJsonObject(runtimeConfigPath, root);
 }
 
@@ -294,13 +323,14 @@ static void PatchDeps(string depsPath)
 {
     var root = LoadJsonObject(depsPath);
     var runtimeTarget = root["runtimeTarget"]?.AsObject() ?? throw new InvalidOperationException("deps.json is missing runtimeTarget");
-    var oldTarget = runtimeTarget["name"]?.GetValue<string>() ?? LinuxRuntimeTarget;
-    runtimeTarget["name"] = LinuxRuntimeTarget;
+    var newTarget = PortConfig.RuntimeTarget;
+    var oldTarget = runtimeTarget["name"]?.GetValue<string>() ?? newTarget;
+    runtimeTarget["name"] = newTarget;
 
     var targets = root["targets"]?.AsObject() ?? throw new InvalidOperationException("deps.json is missing targets");
-    if (targets[oldTarget] is JsonNode oldTargetNode && targets[LinuxRuntimeTarget] is null)
+    if (targets[oldTarget] is JsonNode oldTargetNode && targets[newTarget] is null)
     {
-        targets[LinuxRuntimeTarget] = JsonNode.Parse(oldTargetNode.ToJsonString());
+        targets[newTarget] = JsonNode.Parse(oldTargetNode.ToJsonString());
     }
 
     foreach (var targetEntry in targets.ToList())
@@ -442,6 +472,8 @@ static void PatchGameAssemblyMethods(string gameDir)
     var portDisplayWidthMethod = EnsurePortMasterDisplayDimensionMethod(programType, module, "PortMasterGetDisplayWidth", "DISPLAY_WIDTH");
     var portDisplayHeightMethod = EnsurePortMasterDisplayDimensionMethod(programType, module, "PortMasterGetDisplayHeight", "DISPLAY_HEIGHT");
 
+    if (!PortConfig.Desktop)
+    {
     RewriteUiScaleGetter(
         optionsUiScaleGetter,
         game1SingletonField,
@@ -468,6 +500,7 @@ static void PatchGameAssemblyMethods(string gameDir)
         mathFMin,
         portDisplayWidthMethod,
         portDisplayHeightMethod);
+    }
 
     RewriteContentRootGetter(
         GetRequiredMethod(localizedContentManagerType, "GetContentRoot", 0),
@@ -479,6 +512,15 @@ static void PatchGameAssemblyMethods(string gameDir)
         module.ImportReference(
             dummyAudioCategoryType.Methods.FirstOrDefault(m => m.Name == ".ctor" && !m.IsStatic && m.Parameters.Count == 0)
             ?? throw new InvalidOperationException("Unable to find StardewValley.Audio.DummyAudioCategory::.ctor()")));
+
+    // The rest are handheld-only: fixed-size borderless display, synthesised
+    // pointer, no window mode changes. Desktop platforms keep vanilla behaviour.
+    if (PortConfig.Desktop)
+    {
+        assembly.Write(tempPath, new WriterParameters { WriteSymbols = false });
+        File.Move(tempPath, assemblyPath, overwrite: true);
+        return;
+    }
 
     RewriteTitleMenuViewportUsage(
         GetRequiredMethod(titleMenuType, "gameWindowSizeChanged", 2),
@@ -1248,4 +1290,12 @@ static JsonObject LoadJsonObject(string path)
 static void WriteJsonObject(string path, JsonObject root)
 {
     File.WriteAllText(path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
+}
+
+static class PortConfig
+{
+    public static string RuntimeTarget = ".NETCoreApp,Version=v6.0/linux-arm64";
+    public static string FrameworkVersion = string.Empty;
+    public static string RollForward = string.Empty;
+    public static bool Desktop;
 }
