@@ -119,6 +119,7 @@ StardewValley/
 ├── StardewValley.sh      launcher (vanilla or SMAPI, patches as needed)
 ├── get-game-steam.sh     download/update the game from Steam
 ├── gamepad.sh            set up a controller (writes gamecontrollerdb.txt)
+├── tools/udp-relay.py    optional multiplayer relay for another machine
 ├── build-native.sh       builds libs/ (called by setup.sh)
 ├── gamedata/             patched game files (yours)
 ├── steam-depot/          untouched Steam download (yours)
@@ -209,7 +210,7 @@ Notes:
 | Method | On Haiku |
 |---|---|
 | Steam friends list, Steam invitations, invite codes | **Not available.** These need a running Steam client (or GOG Galaxy) signed in on the same machine. Neither exists for Haiku, so the game hides these options. |
-| Direct IP / LAN | **Should work** (not yet confirmed). Needs no Steam or GOG client. |
+| Direct IP / LAN (including joining Steam- or GOG-hosted farms) | **Should work** (not yet confirmed). Needs no Steam or GOG client on Haiku. See below. |
 
 Direct IP works across platforms: a Haiku player can join a host on
 Windows, macOS or Linux, or host for players on those platforms:
@@ -221,9 +222,36 @@ Windows, macOS or Linux, or host for players on those platforms:
   24642** on your router to your Haiku machine, then share your public IP
   with the other players. On the same network, share your LAN address.
 
-Steam/GOG online play could only come back with a working Steam or Galaxy
-client on Haiku (for example through a Linux compatibility layer). That's
-outside this project for now.
+### Joining a Steam- or GOG-hosted farm from Haiku
+
+The host's farm can accept direct-IP players at the same time as Steam/GOG
+players: the host only needs **Accept IP connections** enabled (Options →
+Multiplayer). Join LAN Game accepts `address:port`, so any way of making the
+host's UDP port reachable works:
+
+| Option | Host side | Haiku side |
+|---|---|---|
+| Port forwarding | Forward UDP 24642 to the host PC | Join `host-public-ip:24642` |
+| UDP tunnel service (e.g. [playit.gg](https://playit.gg), free tier supports UDP) | Run the tunnel agent with a UDP tunnel to local port 24642 | Join the tunnel's `address:port` |
+| VPN mesh | Join a WireGuard/Tailscale network | Join the same network with [Sotoportego](https://github.com/atomozero/Sotoportego) (native Haiku VPN client; Tailscale support is experimental), then join the host's VPN address |
+| Relay through another LAN machine | Reachable from that machine (e.g. over a VPN client Haiku can't run) | Run [`tools/udp-relay.py`](tools/udp-relay.py) on the LAN machine, then join *its* LAN address |
+
+The relay is a small Python 3 script (standard library only) for when the
+host is reachable from some machine on your network but not from Haiku:
+
+```sh
+python3 tools/udp-relay.py --target HOST_ADDRESS:24642
+```
+
+It listens on UDP 24642 on that machine and forwards each player's traffic
+to the host. Note that a player already *in* the farm can't relay for
+others from inside the game: every player connects to the host directly.
+
+All players need the same game version (and the same content mods), and the
+farm needs a free cabin.
+
+Steam/GOG invite codes and friends-list joining could only come back with a
+working Steam or Galaxy client on Haiku, which this project doesn't attempt.
 
 ## Mods (SMAPI)
 

@@ -92,6 +92,7 @@ cp -R "$WORK/patcher/." "$OUT/tools/MainlineGameDataPatcher/"
 cp "$ROOT/haiku/StardewValley.sh" "$ROOT/haiku/build-native.sh" "$ROOT/haiku/setup.sh" "$ROOT/haiku/get-game-steam.sh" "$ROOT/haiku/gamepad.sh" "$OUT/"
 cp "$ROOT"/build/src/native/*.c "$ROOT"/build/src/native/*.cpp "$OUT/native-src/"
 cp "$ROOT/haiku/INSTALL.txt" "$OUT/"
+mkdir -p "$OUT/tools" && cp "$ROOT/tools/udp-relay.py" "$OUT/tools/"
 cp "$ROOT/LICENSE" "$OUT/licenses/LICENSE.Port.txt"
 for f in LICENSE.MonoGame.txt LICENSE.Mono.Cecil.txt; do
   cp "$ROOT/portmaster_stardewvalley_mainline/stardewvalleymainline/licenses/$f" "$OUT/licenses/"
