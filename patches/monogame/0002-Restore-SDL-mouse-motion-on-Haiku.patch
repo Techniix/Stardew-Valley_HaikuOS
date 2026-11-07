@@ -1,7 +1,7 @@
 From 6ec71da471623d8df9045324b65a30c9a99ac52e Mon Sep 17 00:00:00 2001
 From: Dalton Singleton <blumoon94@gmail.com>
 Date: Sat, 7 Nov 2026 16:22:20 -0500
-Subject: [PATCH 2/3] Restore SDL mouse motion on Haiku
+Subject: [PATCH] Restore SDL mouse motion on Haiku
 
 The PortMaster branch disables mouse motion because handhelds synthesise
 the pointer. Desktop Haiku has a real mouse, so re-enable it there.

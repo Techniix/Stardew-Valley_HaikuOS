@@ -1,0 +1,97 @@
+From 837926bb1662eec187f0ecdb5c7f7d2e04c9a6ff Mon Sep 17 00:00:00 2001
+From: Dalton Singleton <blumoon94@gmail.com>
+Date: Sat, 7 Nov 2026 17:05:25 -0500
+Subject: [PATCH] Close OpenAL on process exit on Haiku
+
+On Haiku OpenAL plays through a Media Kit node with its own control
+thread. If the device is still open at process exit (e.g. the game
+calls Environment.Exit, so Game.Dispose never runs), libmedia's static
+teardown frees the time source while that thread still uses it and the
+process segfaults in BTimeSource::GetTime. Hook ProcessExit on Haiku to
+stop the audio update worker and close the device first.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01AVRp8nockFeWgKbb4pQJh9
+---
+ MonoGame.Framework/FrameworkDispatcher.cs     |  7 +++++
+ .../Platform/Audio/OpenALSoundController.cs   | 31 +++++++++++++++++++
+ 2 files changed, 38 insertions(+)
+
+diff --git a/MonoGame.Framework/FrameworkDispatcher.cs b/MonoGame.Framework/FrameworkDispatcher.cs
+index 17c798b66..a9a341b67 100644
+--- a/MonoGame.Framework/FrameworkDispatcher.cs
++++ b/MonoGame.Framework/FrameworkDispatcher.cs
+@@ -19,6 +19,9 @@ namespace Microsoft.Xna.Framework
+     {
+         private static bool _initialized = false;
+         internal static readonly object UpdateSyncRoot = new object();
++        // Set during process exit (see OpenALSoundController) so the worker
++        // stops touching audio before the native audio stack is torn down.
++        internal static volatile bool ShuttingDown;
+         private static Thread _updateWorkerThread;
+ 
+         /// <summary>
+@@ -35,7 +38,11 @@ namespace Microsoft.Xna.Framework
+             while (true)
+             {
+                 lock (UpdateSyncRoot)
++                {
++                    if (ShuttingDown)
++                        return;
+                     DoUpdate();
++                }
+ 
+                 Thread.Sleep(16);
+             }
+diff --git a/MonoGame.Framework/Platform/Audio/OpenALSoundController.cs b/MonoGame.Framework/Platform/Audio/OpenALSoundController.cs
+index 70e441a2a..b476c0168 100644
+--- a/MonoGame.Framework/Platform/Audio/OpenALSoundController.cs
++++ b/MonoGame.Framework/Platform/Audio/OpenALSoundController.cs
+@@ -128,6 +128,18 @@ namespace Microsoft.Xna.Framework.Audio
+ 
+             // We have hardware here and it is ready
+ 
++            // On Haiku, OpenAL plays through a Media Kit node with its own
++            // control thread. If the device is still open when the process
++            // exits (e.g. the game calls Environment.Exit, so Game.Dispose
++            // never runs), libmedia's static teardown frees the time source
++            // while that thread still uses it, and the app segfaults in
++            // BTimeSource::GetTime. Close the device on process exit first.
++            if (CurrentPlatform.OS == OS.Haiku && !_processExitHooked)
++            {
++                _processExitHooked = true;
++                AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
++            }
++
+ 			allSourcesArray = new int[MAX_NUMBER_OF_SOURCES];
+ 			AL.GenSources(allSourcesArray);
+             ALHelper.CheckError("Failed to generate sources.");
+@@ -363,6 +375,25 @@ namespace Microsoft.Xna.Framework.Audio
+             get; private set;
+         }
+ 
++        private static bool _processExitHooked;
++
++        private static void OnProcessExit(object sender, EventArgs e)
++        {
++            try
++            {
++                lock (FrameworkDispatcher.UpdateSyncRoot)
++                {
++                    FrameworkDispatcher.ShuttingDown = true;
++                    if (_instance != null)
++                        SoundEffect.PlatformShutdown();
++                }
++            }
++            catch (Exception ex)
++            {
++                Log("OnProcessExit: " + ex.GetType().FullName + ": " + ex.Message);
++            }
++        }
++
+         public static void DestroyInstance()
+         {
+             if (_instance != null)
+-- 
+2.43.0
+
