@@ -7,9 +7,9 @@ and can download your own copy of the game straight from Steam on Haiku.
 **This project contains no game files.** You need to own Stardew Valley
 (Steam, or the Windows build from GOG).
 
-> **Status: early but working.** The game launches on real hardware
-> (Haiku hrev60368, Ryzen 5 7600X). SMAPI/mods and gamepads are not
-> confirmed yet. Bug reports with `log.txt` are very welcome.
+> **Status: early but working.** The game runs with sound on real hardware
+> (Haiku hrev60368, Ryzen 5 7600X, RTX 5070). SMAPI/mods and gamepads are
+> not confirmed yet. Bug reports with `log.txt` are very welcome.
 
 - [Quick start](#quick-start)
 - [How it works](#how-it-works)
@@ -73,6 +73,12 @@ platform-neutral .NET, so the game itself doesn't need porting. What it runs
 - **Native shims:** tiny C libraries standing in for the Steam API and the
   Windows `user32`/`imm32` calls, plus an SDL2 clipboard bridge.
 - **System libraries:** SDL2 and OpenAL from HaikuPorts, OpenGL through Mesa.
+- **Media-services workaround:** after some boots Haiku's media server hands
+  apps a broken time source, and the game segfaults in
+  `BTimeSource::GetTime` as soon as audio starts. Restarting the media
+  services fixes it, so the launcher does that once per boot before the first
+  launch, using a small helper (`libs/sdv-media-helper`) that calls the same
+  functions as **Preferences → Media → Restart media services**.
 - **Game download:** DepotDownloader runs on .NET for Haiku too. Two Haiku
   workarounds are built in:
   - Haiku's .NET can't list network adapters yet, which crashed SteamKit2 (the
@@ -249,6 +255,7 @@ trying large mods.
 | Download stops progressing | The watchdog restarts it after 3 minutes. If it keeps stalling: `SDV_MAX_DOWNLOADS=2 ./get-game-steam.sh` |
 | Steam Guard asked every time | Answer **Y** to "Remember this Steam login" once. |
 | `PlatformNotSupportedException ... GetAllNetworkInterfaces` | You're running an old package; update it. |
+| Crash in `BTimeSource::GetTime` (debug report) | Media server state after boot. The launcher restarts media services once per boot; force it with `SDV_RESTART_MEDIA=1 ./StardewValley.sh` or use **Preferences → Media → Restart media services**. `SDV_NO_AUDIO=1` runs without sound. |
 | Game doesn't start | Check `log.txt`. Re-patch with `SDV_FORCE_PATCH=1 ./StardewValley.sh`. Confirm `gamedata/` has `Stardew Valley.dll`. |
 | Mods misbehave | `SDV_VANILLA=1 ./StardewValley.sh` to rule out the base game, then see [Mods](#mods-smapi). |
 
@@ -280,6 +287,8 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 - [x] Game launches on real Haiku hardware
 - [x] Setup script, Steam download, Deskbar entry
+- [x] Sound (with the media-services workaround)
+- [ ] Report the media-server time-source bug to Haiku
 - [ ] Confirm SMAPI/Harmony on Haiku
 - [ ] Gamepad testing
 - [ ] `.hpkg` package and HaikuDepot submission

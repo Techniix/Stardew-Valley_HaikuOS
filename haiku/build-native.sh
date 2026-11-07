@@ -37,4 +37,16 @@ build_shim sdkencryptedappticket64_stub.c libsdkencryptedappticket64.so
   ln -sf libuser32.dll.so user32.dll
   ln -sf libSDL2.dll.so SDL2.dll )
 
+# Media-services helper (Haiku only; needs the Be API headers). Optional:
+# without it the launcher just skips the automatic media-services restart.
+if [ "$(uname -s)" = "Haiku" ] && [ -f "$SRC/media_helper.cpp" ]; then
+  echo "  CXX sdv-media-helper"
+  if ! g++ -O2 -s -o "$OUT/sdv-media-helper" "$SRC/media_helper.cpp" -lbe -lmedia; then
+    echo "warning: sdv-media-helper not built; automatic media-services restart disabled" >&2
+    rm -f "$OUT/sdv-media-helper"
+  fi
+fi
+
+touch "$OUT/.built"
+
 echo "Native shims written to $OUT"

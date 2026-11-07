@@ -103,7 +103,7 @@ export DOTNET_ROOT="$dotnet_root"
 
 # --- 3. native shims ------------------------------------------------------------------
 step "3/5 Native shims"
-if [ -f "$GAMEDIR/libs/libSDL2.dll.so" ] && [ "$GAMEDIR/libs/libSDL2.dll.so" -nt "$GAMEDIR/native-src/sdl2_clipboard_shim.c" ]; then
+if [ -f "$GAMEDIR/libs/.built" ] && [ -z "$(find "$GAMEDIR/native-src" -newer "$GAMEDIR/libs/.built" -print -quit)" ]; then
   echo "Already built, skipping."
 else
   "$GAMEDIR/build-native.sh" "$GAMEDIR/libs"

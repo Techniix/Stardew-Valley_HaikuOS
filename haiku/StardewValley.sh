@@ -136,6 +136,39 @@ if [ "$needs_patch" = 1 ] || [ "${SDV_FORCE_PATCH:-0}" = 1 ]; then
   echo "$launch_mode $runtime_version" > "$stamp"
 fi
 
+# --- audio ------------------------------------------------------------------
+# After some boots Haiku's media server hands out a broken time source and the
+# game segfaults in BTimeSource::GetTime as soon as audio starts. Restarting
+# the media services fixes it, so do that once per boot before the first
+# launch. SDV_RESTART_MEDIA=1 forces it, =0 disables it.
+# SDV_NO_AUDIO=1 runs the game silently (OpenAL null output).
+media_helper="$GAMEDIR/libs/sdv-media-helper"
+media_stamp="$GAMEDIR/.media-restarted-boot"
+if [ "${SDV_NO_AUDIO:-0}" = 1 ]; then
+  export ALSOFT_DRIVERS=null
+  echo "Audio disabled (SDV_NO_AUDIO=1)."
+elif [ -x "$media_helper" ]; then
+  boot_time="$("$media_helper" --boot-time 2>/dev/null || echo 0)"
+  restart_media=0
+  case "${SDV_RESTART_MEDIA:-auto}" in
+    1) restart_media=1 ;;
+    0) ;;
+    *)
+      last_boot="$(cat "$media_stamp" 2>/dev/null || echo 0)"
+      delta=$((boot_time - last_boot)); delta=${delta#-}
+      [ "$delta" -gt 5 ] && restart_media=1
+      ;;
+  esac
+  if [ "$restart_media" = 1 ]; then
+    echo "Restarting media services (first launch since boot; other apps' sound pauses briefly)..."
+    if "$media_helper" --restart; then
+      echo "$boot_time" > "$media_stamp"
+    else
+      echo "warning: media services restart failed; if the game crashes, restart them in Preferences > Media"
+    fi
+  fi
+fi
+
 # --- run --------------------------------------------------------------------
 export MONOGAME_PATCH="$patch_assembly"
 if [ "$launch_mode" = smapi ]; then
