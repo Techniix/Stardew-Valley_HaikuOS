@@ -1,7 +1,7 @@
 From b384e10bed7bbea78b514399773b3eb33c06136a Mon Sep 17 00:00:00 2001
 From: Dalton Singleton <blumoon94@gmail.com>
 Date: Sat, 7 Nov 2026 16:20:00 -0500
-Subject: [PATCH] Add Haiku platform support for Stardew Valley port
+Subject: [PATCH 1/3] Add Haiku platform support for Stardew Valley port
 
 Haiku reports 'Haiku' from uname; MonoGame previously classified any
 non-Linux Unix as macOS, so it tried to load .dylib libraries and

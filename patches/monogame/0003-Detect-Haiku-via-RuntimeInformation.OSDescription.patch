@@ -1,7 +1,7 @@
 From 53f972ea54a80d3c58b1f7492637636ad6a235d6 Mon Sep 17 00:00:00 2001
 From: Dalton Singleton <blumoon94@gmail.com>
 Date: Sat, 7 Nov 2026 16:35:00 -0500
-Subject: [PATCH] Detect Haiku via RuntimeInformation.OSDescription
+Subject: [PATCH 3/3] Detect Haiku via RuntimeInformation.OSDescription
 
 CurrentPlatform uses a [DllImport("libc")] uname call, but Haiku's C
 library is libroot.so, so the import fails, the exception is swallowed,

@@ -11,9 +11,6 @@ Apply these to the `portmaster-stardew-mainline` branch of
 3. `0003` Detect Haiku from `RuntimeInformation.OSDescription`. The original
    `uname` call imports `libc`, which Haiku doesn't have (its C library is
    `libroot.so`), so detection in `0001` alone would silently fail.
-4. `0004` Close the OpenAL device on process exit on Haiku. Otherwise Haiku's
-   media library is torn down while OpenAL's playback thread still runs, and
-   the game segfaults in `BTimeSource::GetTime` when quitting.
 
 These patches modify MonoGame source files and are licensed under the
 **Microsoft Public License (Ms-PL)**, like MonoGame itself.
