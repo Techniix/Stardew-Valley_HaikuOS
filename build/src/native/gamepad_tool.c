@@ -11,6 +11,7 @@
  *   sdv-gamepad list             list controllers SDL can see
  *   sdv-gamepad map  DB [index]  record a mapping interactively, save to DB
  *   sdv-gamepad test DB [index]  show live input as the game will see it
+ *   sdv-gamepad raw [index]      show raw axis/button/hat values (diagnostics)
  *
  * Plug the controller in before running (Haiku's SDL backend doesn't
  * hot-plug).
@@ -283,6 +284,12 @@ cmd_map(const char *db, int index)
 			mapped++;
 		} else {
 			printf("-> skipped\n");
+			if (mapped == 0 && i == 2) {
+				fprintf(stderr, "\nNo input received from the controller at all. "
+					"Run './gamepad.sh raw' to see what SDL reads from it.\n");
+				SDL_JoystickClose(js);
+				return 1;
+			}
 		}
 	}
 	snprintf(mapping + len, sizeof(mapping) - len, "platform:Haiku,");
@@ -296,6 +303,56 @@ cmd_map(const char *db, int index)
 		return 1;
 	printf("\nSaved to %s\n%s\n", db, mapping);
 	printf("Check it with: sdv-gamepad test \"%s\" %d\n", db, index);
+	return 0;
+}
+
+/* Print raw joystick state whenever it changes, for 20 seconds. If nothing
+ * changes while pressing buttons, SDL isn't receiving input from the driver. */
+static int
+cmd_raw(int index)
+{
+	SDL_Joystick *js = SDL_JoystickOpen(index);
+	if (js == NULL) {
+		fprintf(stderr, "Can't open controller: %s\n", SDL_GetError());
+		return 1;
+	}
+	int naxes = SDL_JoystickNumAxes(js);
+	int nbuttons = SDL_JoystickNumButtons(js);
+	int nhats = SDL_JoystickNumHats(js);
+	printf("Raw input from \"%s\" (%d axes, %d buttons, %d hats) for 20 seconds.\n"
+		"Press buttons and move sticks; a line prints whenever anything changes.\n\n",
+		SDL_JoystickName(js), naxes, nbuttons, nhats);
+
+	char last[1024] = "";
+	int changes = 0;
+	Uint32 start = SDL_GetTicks();
+	while (SDL_GetTicks() - start < 20000) {
+		char line[1024];
+		int len = 0;
+		SDL_JoystickUpdate();
+		len += snprintf(line + len, sizeof(line) - len, "axes:");
+		for (int a = 0; a < naxes && len < (int)sizeof(line) - 16; a++)
+			len += snprintf(line + len, sizeof(line) - len, " %6d", SDL_JoystickGetAxis(js, a));
+		len += snprintf(line + len, sizeof(line) - len, "  buttons:");
+		for (int b = 0; b < nbuttons && len < (int)sizeof(line) - 8; b++)
+			if (SDL_JoystickGetButton(js, b))
+				len += snprintf(line + len, sizeof(line) - len, " %d", b);
+		len += snprintf(line + len, sizeof(line) - len, "  hats:");
+		for (int h = 0; h < nhats && len < (int)sizeof(line) - 8; h++)
+			len += snprintf(line + len, sizeof(line) - len, " %d", SDL_JoystickGetHat(js, h));
+		if (strcmp(line, last) != 0) {
+			printf("%s\n", line);
+			fflush(stdout);
+			snprintf(last, sizeof(last), "%s", line);
+			changes++;
+		}
+		SDL_Delay(20);
+	}
+	SDL_JoystickClose(js);
+	if (changes <= 1)
+		printf("\nNothing changed: SDL got no input from the controller. Check that the\n"
+			"driver delivers joystick data (Preferences > Joysticks) and that no other\n"
+			"app has the controller open.\n");
 	return 0;
 }
 
@@ -342,7 +399,7 @@ main(int argc, char **argv)
 {
 	if (argc < 2 || ((strcmp(argv[1], "map") == 0 || strcmp(argv[1], "test") == 0)
 			&& argc < 3)) {
-		fprintf(stderr, "usage: %s list | map DB [index] | test DB [index]\n", argv[0]);
+		fprintf(stderr, "usage: %s list | map DB [index] | test DB [index] | raw [index]\n", argv[0]);
 		return 2;
 	}
 	if (init_sdl() != 0)
@@ -351,6 +408,15 @@ main(int argc, char **argv)
 	int rc;
 	if (strcmp(argv[1], "list") == 0) {
 		rc = cmd_list();
+	} else if (strcmp(argv[1], "raw") == 0) {
+		int count = SDL_NumJoysticks();
+		int index = argc > 2 ? atoi(argv[2]) : 0;
+		if (index < 0 || index >= count) {
+			fprintf(stderr, "No controller %d (found %d).\n", index, count);
+			rc = 1;
+		} else {
+			rc = cmd_raw(index);
+		}
 	} else {
 		int index = pick_index(argc, argv);
 		if (index < 0)

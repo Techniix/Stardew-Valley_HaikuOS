@@ -4,6 +4,7 @@
 #   ./gamepad.sh          list controllers; offer to map an unmapped one
 #   ./gamepad.sh map [N]  map controller N (default 0)
 #   ./gamepad.sh test [N] show live input as the game sees it
+#   ./gamepad.sh raw [N]  show raw values SDL reads (diagnostics)
 #
 # Haiku's SDL identifies controllers only by name, so they don't match SDL's
 # built-in controller database and the game ignores them until mapped. The
@@ -26,6 +27,7 @@ index="${2:-0}"
 case "$cmd" in
   map)  exec "$TOOL" map "$DB" "$index" ;;
   test) exec "$TOOL" test "$DB" "$index" ;;
+  raw)  exec "$TOOL" raw "$index" ;;
   "")
     export SDL_GAMECONTROLLERCONFIG_FILE="$DB"
     "$TOOL" list || exit 1
@@ -34,5 +36,5 @@ case "$cmd" in
     [ -n "$pick" ] || exit 0
     "$TOOL" map "$DB" "$pick" && "$TOOL" test "$DB" "$pick"
     ;;
-  *) sed -n 2,11p "$0"; exit 2 ;;
+  *) sed -n 2,12p "$0"; exit 2 ;;
 esac

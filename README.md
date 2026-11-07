@@ -183,6 +183,7 @@ has a mapping. `gamepad.sh` records one:
 ```sh
 ./gamepad.sh          # list controllers, then map one
 ./gamepad.sh test     # show input exactly as the game will see it
+./gamepad.sh raw      # show the raw values SDL reads (diagnostics)
 ```
 
 It asks you to press each button and move each stick (wait 10 seconds to
