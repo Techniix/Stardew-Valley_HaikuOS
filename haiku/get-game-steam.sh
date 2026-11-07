@@ -4,6 +4,8 @@
 #   ./get-game-steam.sh            log in with username (+ password / Steam Guard prompts)
 #   ./get-game-steam.sh --qr       log in by scanning a QR code with the Steam mobile app
 #   ./get-game-steam.sh --update   same as above; re-downloads only changed files
+#   SDV_MAX_DOWNLOADS=2 ./get-game-steam.sh   fewer parallel downloads (default 8),
+#                                             if the download stalls
 #
 # Uses DepotDownloader (github.com/SteamRE/DepotDownloader, GPL-2.0), fetched on
 # first use. It runs on the .NET runtime this port already needs (9.0+).
@@ -126,6 +128,7 @@ echo "Downloading Stardew Valley (Windows build, ~700 MB) into steam-depot/ ..."
 "$DOTNET_ROOT/dotnet" "$DD_DIR/DepotDownloader.dll" \
   -app "$APP_ID" -os windows -osarch 64 \
   -dir "$DEPOT_DIR" \
+  -max-downloads "${SDV_MAX_DOWNLOADS:-8}" \
   "${login_args[@]}"
 
 [ -f "$DEPOT_DIR/Stardew Valley.dll" ] || {
