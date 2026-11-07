@@ -1,0 +1,49 @@
+From 9f6da7854a948a3d9c65dd2df187257e785da6c6 Mon Sep 17 00:00:00 2001
+From: Dalton Singleton <blumoon94@gmail.com>
+Date: Sat, 7 Nov 2026 18:47:19 -0500
+Subject: [PATCH] Add controllers present at startup on Haiku
+
+SDL2's Haiku joystick backend has no hotplug support and never calls
+SDL_PrivateJoystickAdded, so SDL_JOYDEVICEADDED is never sent. That
+event is the only path to Joystick.AddDevice/GamePad.AddDevice, so no
+controller was ever usable. On Haiku, enumerate SDL_NumJoysticks() after
+init and add each device.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01AVRp8nockFeWgKbb4pQJh9
+---
+ .../Platform/SDL/SDLGamePlatform.cs            | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/MonoGame.Framework/Platform/SDL/SDLGamePlatform.cs b/MonoGame.Framework/Platform/SDL/SDLGamePlatform.cs
+index 8edfa2b8d..1953c5baf 100644
+--- a/MonoGame.Framework/Platform/SDL/SDLGamePlatform.cs
++++ b/MonoGame.Framework/Platform/SDL/SDLGamePlatform.cs
+@@ -59,6 +59,24 @@ namespace Microsoft.Xna.Framework
+             Sdl.DisableScreenSaver();
+ 
+             GamePad.InitDatabase();
++
++            // SDL2's Haiku joystick backend has no hotplug support and never
++            // sends SDL_JOYDEVICEADDED, which is the only way devices get added
++            // here. Add the controllers that are connected at startup.
++            if (CurrentPlatform.OS == OS.Haiku)
++            {
++                try
++                {
++                    var count = Sdl.Joystick.NumJoysticks();
++                    for (var i = 0; i < count; i++)
++                        Joystick.AddDevice(i);
++                }
++                catch (Exception)
++                {
++                    // no joystick support; play without controllers
++                }
++            }
++
+             Window = _view = new SdlGameWindow(_game);
+         }
+ 
+-- 
+2.43.0
+

@@ -11,6 +11,9 @@ Apply these to the `portmaster-stardew-mainline` branch of
 3. `0003` Detect Haiku from `RuntimeInformation.OSDescription`. The original
    `uname` call imports `libc`, which Haiku doesn't have (its C library is
    `libroot.so`), so detection in `0001` alone would silently fail.
+4. `0004` Add controllers present at startup on Haiku. SDL2's Haiku joystick
+   backend never sends `SDL_JOYDEVICEADDED` (no hotplug), which is MonoGame's
+   only path to registering a gamepad.
 
 These patches modify MonoGame source files and are licensed under the
 **Microsoft Public License (Ms-PL)**, like MonoGame itself.

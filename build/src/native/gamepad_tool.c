@@ -112,8 +112,14 @@ static Sint16 rest[MAX_AXES];
 static void
 read_rest(SDL_Joystick *js, int naxes)
 {
-	SDL_Delay(200);
-	SDL_JoystickUpdate();
+	/* Poll for a while before sampling: the first values can be a stale
+	 * snapshot from before the driver's first report (e.g. 0 for triggers
+	 * that really rest at -32768). */
+	Uint32 start = SDL_GetTicks();
+	while (SDL_GetTicks() - start < 700) {
+		SDL_JoystickUpdate();
+		SDL_Delay(10);
+	}
 	for (int a = 0; a < naxes && a < MAX_AXES; a++)
 		rest[a] = SDL_JoystickGetAxis(js, a);
 }
@@ -169,6 +175,9 @@ capture(SDL_Joystick *js, const struct step *s, int naxes, int nbuttons,
 			int v = SDL_JoystickGetAxis(js, a);
 			int delta = v - rest[a];
 			if (abs(delta) < THRESHOLD)
+				continue;
+			/* Sticks rest centred; an axis resting at an end is a trigger. */
+			if (s->kind == STICK_AXIS && abs(rest[a]) > THRESHOLD)
 				continue;
 			if (s->kind == STICK_AXIS) {
 				/* prompts ask for right/down = positive direction */
