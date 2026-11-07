@@ -73,12 +73,15 @@ platform-neutral .NET, so the game itself doesn't need porting. What it runs
 - **Native shims:** tiny C libraries standing in for the Steam API and the
   Windows `user32`/`imm32` calls, plus an SDL2 clipboard bridge.
 - **System libraries:** SDL2 and OpenAL from HaikuPorts, OpenGL through Mesa.
-- **Media-services workaround:** after some boots Haiku's media server hands
-  apps a broken time source, and the game segfaults in
-  `BTimeSource::GetTime` as soon as audio starts. Restarting the media
-  services fixes it, so the launcher does that once per boot before the first
-  launch, using a small helper (`libs/sdv-media-helper`) that calls the same
-  functions as **Preferences → Media → Restart media services**.
+- **Haiku media kit race:** sometimes the game segfaults in
+  `BTimeSource::GetTime` as audio starts. It's a race in Haiku's media kit,
+  not in the game: a node's time source object can be freed while its
+  playback thread still uses it (details and upstream report:
+  [`docs/upstream/haiku-media-timesource-race.md`](docs/upstream/haiku-media-timesource-race.md)).
+  It's timing-dependent, so the launcher changes nothing up front. If the
+  game crashes, it offers to **restart the media services and retry**
+  (a small helper, `libs/sdv-media-helper`, does what Preferences → Media
+  does) or to **play without sound**.
 - **Game download:** DepotDownloader runs on .NET for Haiku too. Two Haiku
   workarounds are built in:
   - Haiku's .NET can't list network adapters yet, which crashed SteamKit2 (the
@@ -255,7 +258,7 @@ trying large mods.
 | Download stops progressing | The watchdog restarts it after 3 minutes. If it keeps stalling: `SDV_MAX_DOWNLOADS=2 ./get-game-steam.sh` |
 | Steam Guard asked every time | Answer **Y** to "Remember this Steam login" once. |
 | `PlatformNotSupportedException ... GetAllNetworkInterfaces` | You're running an old package; update it. |
-| Crash in `BTimeSource::GetTime` (debug report) | Media server state after boot. The launcher restarts media services once per boot; force it with `SDV_RESTART_MEDIA=1 ./StardewValley.sh` or use **Preferences → Media → Restart media services**. `SDV_NO_AUDIO=1` runs without sound. |
+| Crash in `BTimeSource::GetTime` (debug report) | Haiku media kit race. Click **Terminate** in the debugger, then **Restart media & retry** in the launcher's prompt. If it keeps happening: `SDV_RESTART_MEDIA=1 ./StardewValley.sh` restarts them before every launch; `SDV_NO_AUDIO=1` plays without sound. |
 | Game doesn't start | Check `log.txt`. Re-patch with `SDV_FORCE_PATCH=1 ./StardewValley.sh`. Confirm `gamedata/` has `Stardew Valley.dll`. |
 | Mods misbehave | `SDV_VANILLA=1 ./StardewValley.sh` to rule out the base game, then see [Mods](#mods-smapi). |
 
@@ -287,8 +290,8 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 - [x] Game launches on real Haiku hardware
 - [x] Setup script, Steam download, Deskbar entry
-- [x] Sound (with the media-services workaround)
-- [ ] Report the media-server time-source bug to Haiku
+- [x] Sound
+- [ ] Get the media kit time-source race fixed in Haiku
 - [ ] Confirm SMAPI/Harmony on Haiku
 - [ ] Gamepad testing
 - [ ] `.hpkg` package and HaikuDepot submission

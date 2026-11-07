@@ -137,36 +137,31 @@ if [ "$needs_patch" = 1 ] || [ "${SDV_FORCE_PATCH:-0}" = 1 ]; then
 fi
 
 # --- audio ------------------------------------------------------------------
-# After some boots Haiku's media server hands out a broken time source and the
-# game segfaults in BTimeSource::GetTime as soon as audio starts. Restarting
-# the media services fixes it, so do that once per boot before the first
-# launch. SDV_RESTART_MEDIA=1 forces it, =0 disables it.
-# SDV_NO_AUDIO=1 runs the game silently (OpenAL null output).
+# Haiku's media kit has a race: if an app's audio node gets its time source
+# switched while its playback thread is using the old one, the old
+# BTimeSource is freed under it and the game segfaults in
+# BTimeSource::GetTime as audio starts. It's timing-dependent and varies by
+# system, so nothing is done up front. If the game crashes, the launcher
+# offers to restart the media services (which has made it go away) or to
+# play without sound.
+#   SDV_RESTART_MEDIA=1   restart media services before every launch
+#   SDV_NO_AUDIO=1        no sound (OpenAL null output), avoids the media kit
 media_helper="$GAMEDIR/libs/sdv-media-helper"
-media_stamp="$GAMEDIR/.media-restarted-boot"
+
+restart_media() {
+  if [ ! -x "$media_helper" ]; then
+    echo "Media helper not built (run ./setup.sh); restart media services in Preferences > Media."
+    return 1
+  fi
+  echo "Restarting media services (other apps' sound pauses briefly)..."
+  "$media_helper" --restart
+}
+
 if [ "${SDV_NO_AUDIO:-0}" = 1 ]; then
   export ALSOFT_DRIVERS=null
   echo "Audio disabled (SDV_NO_AUDIO=1)."
-elif [ -x "$media_helper" ]; then
-  boot_time="$("$media_helper" --boot-time 2>/dev/null || echo 0)"
-  restart_media=0
-  case "${SDV_RESTART_MEDIA:-auto}" in
-    1) restart_media=1 ;;
-    0) ;;
-    *)
-      last_boot="$(cat "$media_stamp" 2>/dev/null || echo 0)"
-      delta=$((boot_time - last_boot)); delta=${delta#-}
-      [ "$delta" -gt 5 ] && restart_media=1
-      ;;
-  esac
-  if [ "$restart_media" = 1 ]; then
-    echo "Restarting media services (first launch since boot; other apps' sound pauses briefly)..."
-    if "$media_helper" --restart; then
-      echo "$boot_time" > "$media_stamp"
-    else
-      echo "warning: media services restart failed; if the game crashes, restart them in Preferences > Media"
-    fi
-  fi
+elif [ "${SDV_RESTART_MEDIA:-0}" = 1 ]; then
+  restart_media || true
 fi
 
 # --- run --------------------------------------------------------------------
@@ -180,7 +175,29 @@ else
   unset SMAPI_MODS_PATH SMAPI_USE_CURRENT_SHELL
 fi
 cd "$GAMEDIR/gamedata" || exit 1
-"$DOTNET" "$entry_assembly" "$@"
-status=$?
-echo "Stardew Valley exited with status $status."
+
+retried=0
+while :; do
+  "$DOTNET" "$entry_assembly" "$@"
+  status=$?
+  echo "Stardew Valley exited with status $status."
+
+  # > 128 means killed by a signal, e.g. a segfault terminated from the
+  # Haiku debugger dialog. Offer the media-kit workarounds once.
+  if [ "$status" -le 128 ] || [ "$retried" = 1 ] || [ "${ALSOFT_DRIVERS:-}" = null ] \
+     || ! command -v alert >/dev/null 2>&1; then
+    break
+  fi
+  retried=1
+  alert --warning "Stardew Valley crashed.
+
+If the debug report showed BTimeSource::GetTime, this is a known Haiku media kit bug that can hit when audio starts. Restarting the media services usually fixes it." \
+    "Quit" "Play without sound" "Restart media & retry" >/dev/null
+  choice=$?
+  case "$choice" in
+    2) restart_media || break ;;
+    1) export ALSOFT_DRIVERS=null; echo "Retrying without sound." ;;
+    *) break ;;
+  esac
+done
 exit $status

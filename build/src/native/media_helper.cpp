@@ -1,12 +1,12 @@
 // Small Haiku helper for the Stardew Valley launcher.
 //
-//   sdv-media-helper --boot-time   print the boot time (seconds since epoch)
 //   sdv-media-helper --restart     restart the media services, like
 //                                  Preferences > Media > Restart media services
 //
-// Why: after some boots the media server hands apps a time source whose shared
-// memory isn't mapped, and the first BSoundPlayer/BMediaEventLooper call
-// segfaults in BTimeSource::GetTime. Restarting the media services fixes it.
+// Used by StardewValley.sh to recover from a Haiku media kit race: a node's
+// BTimeSource can be released (NODE_SET_TIMESOURCE) while its
+// BMediaEventLooper control thread still uses it, crashing in
+// BTimeSource::GetTime. Restarting the media services has made it go away.
 
 #include <Application.h>
 #include <MediaDefs.h>
@@ -18,7 +18,7 @@
 static int
 usage(const char* name)
 {
-	fprintf(stderr, "usage: %s --boot-time | --restart\n", name);
+	fprintf(stderr, "usage: %s --restart\n", name);
 	return 2;
 }
 
@@ -27,15 +27,6 @@ main(int argc, char** argv)
 {
 	if (argc != 2)
 		return usage(argv[0]);
-
-	if (strcmp(argv[1], "--boot-time") == 0) {
-		// real_time_clock() is seconds since epoch, system_time() is
-		// microseconds since boot. Callers allow a few seconds of jitter.
-		long long bootTime = (long long)real_time_clock()
-			- (long long)(system_time() / 1000000);
-		printf("%lld\n", bootTime);
-		return 0;
-	}
 
 	if (strcmp(argv[1], "--restart") == 0) {
 		BApplication app("application/x-vnd.Techniix-sdv-media-helper");

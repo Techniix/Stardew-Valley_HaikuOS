@@ -28,10 +28,10 @@ Other commands:
     SDV_RESTART_MEDIA=1 ./StardewValley.sh    restart media services first
     SDV_NO_AUDIO=1 ./StardewValley.sh         play without sound
 
-The first launch after each boot restarts Haiku's media services (other
-apps' sound pauses briefly). This works around a media-server bug that
-otherwise crashes the game when audio starts. Disable with
-SDV_RESTART_MEDIA=0.
+If the game crashes as it starts (debug report mentions
+BTimeSource::GetTime), that's a Haiku media kit bug. Terminate it in the
+debugger; the launcher then offers to restart the media services and retry,
+or to play without sound.
 
 If a download stops progressing, it's restarted automatically after 3 minutes
 and resumes where it left off.
