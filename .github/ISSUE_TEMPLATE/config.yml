@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Mod-specific problems
+    url: https://smapi.io/log
+    about: Parse your SMAPI log first; many mod issues are missing dependencies, not Haiku bugs.
+  - name: PortMaster (handheld) version
+    url: https://github.com/Producdevity/portmaster-stardew-valley-mainline/issues
+    about: Problems with the PortMaster package belong upstream.

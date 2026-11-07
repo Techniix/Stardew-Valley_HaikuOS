@@ -4,10 +4,10 @@
 #
 #   ./haiku/build-managed.sh
 #
-# Expects the MonoGame fork as a sibling checkout (../MonoGame), on the
-# portmaster-stardew-mainline branch of Producdevity/MonoGame. The Haiku
-# patches in patches/monogame/ are applied to it if they are not already.
-# Override with MONOGAME_ROOT=/path/to/MonoGame.
+# Uses the MonoGame fork (Producdevity/MonoGame, portmaster-stardew-mainline)
+# as a sibling checkout at ../MonoGame, cloned automatically at the pinned
+# commit below if missing. The Haiku patches in patches/monogame/ are applied
+# to it if they are not already. Override with MONOGAME_ROOT=/path/to/MonoGame.
 
 set -euo pipefail
 unset CDPATH
@@ -22,12 +22,24 @@ SMAPI_VERSION="${SMAPI_VERSION:-4.5.2}"
 SMAPI_SHA256="${SMAPI_SHA256:-dd01ddca7b566bfe0d3b3d2d03833496abc56c53da976241f2ab443f5484acc4}"
 SMAPI_TOOLKIT_FILES=(SMAPI.Toolkit.dll SMAPI.Toolkit.xml SMAPI.Toolkit.CoreInterfaces.dll SMAPI.Toolkit.CoreInterfaces.xml)
 
-command -v dotnet >/dev/null || { echo "dotnet SDK not found" >&2; exit 1; }
-[ -d "$MONOGAME_ROOT/MonoGame.Framework" ] || {
-  echo "MonoGame fork not found at $MONOGAME_ROOT" >&2
-  echo "git clone -b portmaster-stardew-mainline https://github.com/Producdevity/MonoGame \"$MONOGAME_ROOT\"" >&2
-  exit 1
-}
+MONOGAME_REPO="https://github.com/Producdevity/MonoGame"
+MONOGAME_COMMIT="3874df98675039d368e77dca50d9a00ac970537e"   # portmaster-stardew-mainline
+
+for tool in dotnet git curl unzip zip sha256sum; do
+  command -v "$tool" >/dev/null || { echo "Missing required tool: $tool" >&2; exit 1; }
+done
+
+if [ ! -d "$MONOGAME_ROOT/MonoGame.Framework" ]; then
+  echo "== Cloning MonoGame fork into $MONOGAME_ROOT"
+  git init -q "$MONOGAME_ROOT"
+  git -C "$MONOGAME_ROOT" remote add origin "$MONOGAME_REPO"
+  git -C "$MONOGAME_ROOT" fetch -q --depth 1 origin "$MONOGAME_COMMIT"
+  git -C "$MONOGAME_ROOT" checkout -q FETCH_HEAD
+fi
+monogame_head="$(git -C "$MONOGAME_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
+if [ "$monogame_head" != "$MONOGAME_COMMIT" ]; then
+  echo "warning: MonoGame checkout is at $monogame_head, expected $MONOGAME_COMMIT" >&2
+fi
 
 echo "== Applying Haiku MonoGame patches"
 for patch in "$ROOT"/patches/monogame/*.patch; do

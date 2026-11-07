@@ -130,7 +130,7 @@ dd_cmd=("$DOTNET_ROOT/dotnet" "$DD_DIR/DepotDownloader.dll"
   -dir "$DEPOT_DIR"
   -max-downloads "${SDV_MAX_DOWNLOADS:-8}"
   "${login_args[@]}")
-[ -n "${SDV_DD_TEST_CMD:-}" ] && dd_cmd=($SDV_DD_TEST_CMD)   # test hook
+[ -n "${SDV_DD_TEST_CMD:-}" ] && read -r -a dd_cmd <<< "$SDV_DD_TEST_CMD"   # test hook
 
 # Downloads on Haiku can stall: no errors, no progress. DepotDownloader
 # resumes cleanly, so a watchdog restarts it when steam-depot/ stops growing.

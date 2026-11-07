@@ -1,0 +1,57 @@
+name: Bug report
+description: Something doesn't work on Haiku (setup, download, game or mods)
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing! Please don't attach game files or anything
+        containing your Steam password.
+  - type: dropdown
+    id: stage
+    attributes:
+      label: Where does it fail?
+      options:
+        - setup.sh (packages / .NET / shims)
+        - get-game-steam.sh (Steam login or download)
+        - Starting the game (vanilla)
+        - In-game (graphics, audio, input, saves)
+        - SMAPI / mods
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Package version
+      description: The `VERSION` file in the package folder (e.g. `haiku-a711bfb`).
+    validations:
+      required: true
+  - type: input
+    id: hrev
+    attributes:
+      label: Haiku revision
+      description: From `uname -v` or About Haiku (e.g. `hrev60368`).
+    validations:
+      required: true
+  - type: input
+    id: hardware
+    attributes:
+      label: Hardware
+      description: CPU, GPU and whether it's real hardware or a VM.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, what you saw.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Attach or paste `log.txt` from the package folder. For mods, also
+        `~/.config/StardewValley/ErrorLogs/SMAPI-latest.txt`. For crashes,
+        the Terminal output and the debug report Haiku offers to save.
+      render: text

@@ -1,108 +1,146 @@
 # Stardew Valley for HaikuOS
 
-Run Stardew Valley 1.6 natively on [Haiku](https://www.haiku-os.org/) (x86_64)
-with the Haiku port of .NET. This is a launcher and compatibility kit: **it
-contains no game files**. You need your own copy of Stardew Valley.
+Run Stardew Valley 1.6 natively on [Haiku](https://www.haiku-os.org/) x86_64,
+with mod support, using the Haiku port of .NET. One script sets everything up
+and can download your own copy of the game straight from Steam on Haiku.
 
-> Status: **experimental, not yet tested on real hardware.** Bug reports with
-> `log.txt` attached are very welcome.
+**This project contains no game files.** You need to own Stardew Valley
+(Steam, or the Windows build from GOG).
+
+> **Status: early but working.** The game launches on real hardware
+> (Haiku hrev60368, Ryzen 5 7600X). SMAPI/mods and gamepads are not
+> confirmed yet. Bug reports with `log.txt` are very welcome.
+
+- [Quick start](#quick-start)
+- [How it works](#how-it-works)
+- [How this differs from other ports](#how-this-differs-from-other-ports)
+- [Mods (SMAPI)](#mods-smapi)
+- [Troubleshooting](#troubleshooting)
+- [Building from source](#building-from-source)
+
+## Quick start
+
+1. Download `StardewValley-haiku.zip` from
+   [Releases](https://github.com/Techniix/Stardew-Valley_HaikuOS/releases)
+   (or [build it](#building-from-source)) and unzip it wherever you like.
+2. Open **Terminal** in the unzipped `StardewValley` folder and run:
+   ```sh
+   ./setup.sh
+   ```
+3. Start the game from **Deskbar → Applications → Stardew Valley**, or with
+   `./StardewValley.sh`.
+
+`setup.sh` is safe to re-run; it skips what's already done:
+
+| Step | What it does |
+|---|---|
+| 1. Packages | `pkgman install` SDL2, OpenAL, gcc and the libraries .NET needs |
+| 2. .NET | Installs .NET 10 for Haiku ([trungnt2910/dotnet-builds](https://github.com/trungnt2910/dotnet-builds)) into `./dotnet`, unless .NET 9+ is already installed |
+| 3. Native shims | Builds the small C libraries in `libs/` with gcc |
+| 4. Game files | Offers to download the game from Steam (see below), or tells you where to copy it |
+| 5. Deskbar | Adds a menu entry |
+
+**Downloading from Steam** (`./get-game-steam.sh`, also run by `setup.sh`):
+log in with username + password + Steam Guard, or `--qr` to scan a code with
+the Steam app. Your password and Steam Guard code go straight to
+[DepotDownloader](https://github.com/SteamRE/DepotDownloader); these scripts
+never see or store them. With "remember", only DepotDownloader's login token is
+kept, so later runs (game updates) don't ask again. Run it again any time to
+update the game.
+
+**Copying files instead (GOG, or an existing install):** copy the contents of
+your Stardew Valley folder (the one with `Stardew Valley.dll`) into
+`gamedata/` and run `./setup.sh --no-game`.
 
 ## How it works
 
 Stardew Valley is a .NET 6 game built on MonoGame. Its game code is
-platform-neutral .NET, so it doesn't need to be ported. What it runs *on* does:
+platform-neutral .NET, so the game itself doesn't need porting. What it runs
+*on* does:
 
-- **.NET runtime:** [trungnt2910/dotnet-builds](https://github.com/trungnt2910/dotnet-builds)
-  (9.0 or newer; `setup.sh` installs 10). Haiku has no .NET 6, so the game
-  runs on the newest installed runtime via `rollForward: LatestMajor`.
-- **MonoGame:** the game's bundled `MonoGame.Framework.dll` is replaced with a
-  build of [Producdevity's Stardew-compatible MonoGame fork](https://github.com/Producdevity/MonoGame/tree/portmaster-stardew-mainline)
-  plus Haiku patches ([`patches/monogame/`](patches/monogame/)).
+- **.NET runtime:** .NET for Haiku, 9.0 or newer. Haiku has no .NET 6, so the
+  game runs on the newest installed runtime via `rollForward: LatestMajor`.
+- **MonoGame:** the game's `MonoGame.Framework.dll` is replaced with a build of
+  [Producdevity's Stardew-compatible MonoGame fork](https://github.com/Producdevity/MonoGame/tree/portmaster-stardew-mainline)
+  plus Haiku patches ([`patches/monogame/`](patches/monogame/)): MonoGame
+  detects Haiku as its own OS, loads `dlopen` from `libroot.so`, and uses
+  Haiku's SDL2 and OpenAL libraries.
 - **Game patcher:** `MainlineGameDataPatcher` rewrites the game's
-  `deps.json`/`runtimeconfig.json` for Haiku, removes Windows-only native
-  files and applies a few IL fixes to `Stardew Valley.dll`. It runs on your
-  machine against your own copy, once per game update.
-- **Native shims:** tiny C libraries standing in for the Steam API and Windows
-  `user32`/`imm32` calls, plus an SDL2 clipboard bridge. They're built on Haiku
-  by `build-native.sh`.
+  `deps.json`/`runtimeconfig.json` for Haiku, removes the bundled Windows
+  runtime and native files, and applies a few IL fixes to `Stardew Valley.dll`.
+  It runs on your machine against your own copy, and again automatically after
+  game, .NET or mod changes.
+- **Native shims:** tiny C libraries standing in for the Steam API and the
+  Windows `user32`/`imm32` calls, plus an SDL2 clipboard bridge.
 - **System libraries:** SDL2 and OpenAL from HaikuPorts, OpenGL through Mesa.
-- **Game download:** `get-game-steam.sh` fetches your own copy straight from
-  Steam with [DepotDownloader](https://github.com/SteamRE/DepotDownloader),
-  which itself runs on .NET for Haiku. No Windows or Linux machine needed.
-  Haiku's .NET can't list network adapters yet, which crashes SteamKit2 (the
-  Steam library inside DepotDownloader) right after login. The script
-  patches that one fallback in your local copy so it uses SteamKit's
-  built-in placeholder machine ID instead.
-  Downloads on Haiku can also stall silently; the script watches
-  `steam-depot/` and restarts DepotDownloader (which resumes) if it stops
-  growing for 3 minutes. `SDV_MAX_DOWNLOADS=2` reduces parallel connections.
+- **Game download:** DepotDownloader runs on .NET for Haiku too. Two Haiku
+  workarounds are built in:
+  - Haiku's .NET can't list network adapters yet, which crashed SteamKit2 (the
+    Steam library inside DepotDownloader) right after login. The script widens
+    one `catch` in your local `SteamKit2.dll` so SteamKit uses its built-in
+    fallback machine ID.
+  - Downloads can stall silently. A watchdog restarts DepotDownloader (which
+    resumes) when `steam-depot/` stops growing for 3 minutes.
+
+Package layout:
+
+```
+StardewValley/
+├── setup.sh              one-time setup
+├── StardewValley.sh      launcher (vanilla or SMAPI, patches as needed)
+├── get-game-steam.sh     download/update the game from Steam
+├── build-native.sh       builds libs/ (called by setup.sh)
+├── gamedata/             patched game files (yours)
+├── steam-depot/          untouched Steam download (yours)
+├── Mods/                 SMAPI mods
+├── dotnet/               .NET for Haiku (if installed by setup.sh)
+├── libs/                 native shims
+├── overrides/ dlls/ tools/   Haiku MonoGame build, patcher, SMAPI bundle
+├── licenses/             third-party licenses
+├── log.txt               output of the last game run
+└── VERSION               package version (include it in bug reports)
+```
 
 ## How this differs from other ports
 
 ### vs. the Haiku forum method ([Stardew Valley on Haiku](https://discuss.haiku-os.org/t/stardew-valley-on-haiku/19174), May 2026)
 
-That thread showed the game *can* run on Haiku. It's a manual procedure, and
-this project aims to make it repeatable and robust:
+That thread showed the game *can* run on Haiku. It's a manual procedure; this
+project makes it repeatable and robust:
 
 | | Forum method | This port |
 |---|---|---|
-| MonoGame on Haiku | Hex-edits the `libSystem.dylib` path inside the game's `MonoGame.Framework.dll` | Source-level fix: MonoGame detects Haiku as its own OS, loads `dlopen` from `libroot.so`, and uses the correct SDL2/OpenAL names |
-| System changes | A `/usr/lib` symlink that's lost on every reboot | None: everything stays in the game folder |
-| Game build | GOG | Windows Steam or GOG (1.6 mainline) |
+| MonoGame on Haiku | Edits the `libSystem.dylib` path string inside the game's `MonoGame.Framework.dll` | Source-level fix in MonoGame (OS detection, `libroot.so`, SDL2/OpenAL names) |
+| System changes | A `/usr/lib` symlink, lost on every reboot | None; everything stays in the package folder |
+| Getting the game | Copy files from another machine | Download from Steam on Haiku, or copy |
+| Game build | GOG | Steam or GOG (Windows build, 1.6) |
 | Steam / Windows natives | Not handled | Stub/shim libraries |
-| Audio | Bundled MonoGame audio, unconfirmed | Fork with OpenAL fixes (loop-state reset, effect filtering, dedicated audio worker) |
-| Mods (SMAPI) | No | Bundled SMAPI, turned on automatically when `Mods/` has mods (see [Mods](#mods-smapi)) |
-| Source | Not published | This repository, MIT |
-| Getting the game | Copy files over from another machine | Download from Steam directly on Haiku (`get-game-steam.sh`), or copy |
-| Install | Follow forum steps | `setup.sh` installs packages, .NET, shims, game and Deskbar entry; `.hpkg` planned |
+| Audio | Bundled MonoGame audio | Fork with OpenAL fixes (loop-state reset, effect filtering, audio worker thread) |
+| Mods (SMAPI) | No | Bundled SMAPI, enabled automatically when `Mods/` has mods |
+| Install | Follow forum steps | `setup.sh` + Deskbar entry |
+| Source | Not published | This repository (MIT) |
 
 ### vs. the PortMaster port it's based on ([Producdevity/portmaster-stardew-valley-mainline](https://github.com/Producdevity/portmaster-stardew-valley-mainline))
 
-This repo is a fork of that project and keeps its full history. The upstream
-PortMaster build still works (see [`docs/PortMaster.md`](docs/PortMaster.md)).
-The Haiku differences:
+This repo is a fork of that project and keeps its full history; the PortMaster
+build still works (see [`docs/PortMaster.md`](docs/PortMaster.md) and [`docs/PortMaster-CONTRIBUTING.md`](docs/PortMaster-CONTRIBUTING.md)). The Haiku
+differences:
 
 - **Target:** Haiku x86_64 desktop instead of aarch64 Linux handhelds.
-- **Runtime:** system .NET 8+ for Haiku with roll-forward, instead of a bundled
+- **Runtime:** .NET 9+ for Haiku with roll-forward, instead of a bundled
   Microsoft .NET 6 runtime (none exists for Haiku).
-- **Desktop profile:** the patcher gained a `--profile desktop` mode that keeps
-  vanilla window modes, UI scale, zoom and mouse input. The handheld rewrites
-  (forced borderless fixed resolution, display-size scaling, synthesised
-  pointer) are skipped. MonoGame mouse motion is re-enabled on Haiku.
-- **Configurable patcher:** new `--runtime-target`, `--framework-version` and
-  `--roll-forward` options. PortMaster defaults are unchanged.
-- **No GL4ES or PortMaster tooling:** native OpenGL through Haiku's Mesa, no
-  gptokeyb.
-- **Setup and game download on the device:** `setup.sh` and
-  `get-game-steam.sh` replace copying files from a PC.
-- **Build fix:** `bootstrap-monogame-thirdparty.sh` now fetches the pinned
-  NVorbis commit directly (a shallow clone couldn't check it out).
-
-## Install (Haiku)
-
-Unzip the release (or build it, below), then in Terminal:
-
-```sh
-./setup.sh
-```
-
-`setup.sh` does everything, skipping steps that are already done:
-
-1. installs SDL2, OpenAL, gcc and the .NET dependencies with `pkgman`
-2. installs .NET 10 for Haiku into `./dotnet`, unless .NET 9+ is already installed
-3. builds the native shims
-4. offers to download Stardew Valley from Steam. You log in with your own
-   account (username + password + Steam Guard, or a QR code via `--qr`). Your
-   password and Steam Guard code go straight to DepotDownloader; these scripts
-   never see or store them.
-5. adds Stardew Valley to the Deskbar Applications menu
-
-Then launch from the Deskbar or with `./StardewValley.sh`. Run
-`./get-game-steam.sh` again to update the game.
-
-GOG or already-copied files: put your Stardew Valley folder's contents (with
-`Stardew Valley.dll`) into `gamedata/` and run `./setup.sh --no-game`.
-See [`haiku/INSTALL.txt`](haiku/INSTALL.txt).
+- **Desktop profile:** the patcher's `--profile desktop` keeps vanilla window
+  modes, UI scale, zoom and mouse input, skipping the handheld rewrites (forced
+  borderless fixed resolution, display-size scaling, synthesised pointer).
+  MonoGame mouse motion is re-enabled on Haiku.
+- **More robust patcher:** new `--runtime-target`, `--framework-version`,
+  `--roll-forward` and `--patch-steamkit` options; it accepts any 6.0.x
+  runtime pack in the game files, not just 6.0.32. PortMaster defaults are
+  unchanged.
+- **No GL4ES or PortMaster tooling:** native OpenGL through Mesa, no gptokeyb.
+- **Setup and game download on the device** instead of copying from a PC.
+- **Build fix:** `bootstrap-monogame-thirdparty.sh` fetches the pinned NVorbis
+  commit directly (a shallow clone couldn't check it out).
 
 ## Mods (SMAPI)
 
@@ -203,33 +241,59 @@ trying large mods.
 - *"Native library not found" from a mod:* that mod ships platform-specific
   native code and won't work on Haiku.
 
-## Build
+## Troubleshooting
 
-The managed parts are platform-neutral and can be built on Linux (or on Haiku
-with the .NET SDK):
+| Symptom | Fix |
+|---|---|
+| "This copy is in the Trash" | Your Terminal is still in an old folder. Open a new Terminal, `cd` to the new folder. |
+| Download stops progressing | The watchdog restarts it after 3 minutes. If it keeps stalling: `SDV_MAX_DOWNLOADS=2 ./get-game-steam.sh` |
+| Steam Guard asked every time | Answer **Y** to "Remember this Steam login" once. |
+| `PlatformNotSupportedException ... GetAllNetworkInterfaces` | You're running an old package; update it. |
+| Game doesn't start | Check `log.txt`. Re-patch with `SDV_FORCE_PATCH=1 ./StardewValley.sh`. Confirm `gamedata/` has `Stardew Valley.dll`. |
+| Mods misbehave | `SDV_VANILLA=1 ./StardewValley.sh` to rule out the base game, then see [Mods](#mods-smapi). |
+
+Saves live in `~/.config/StardewValley/Saves`.
+[Open an issue](https://github.com/Techniix/Stardew-Valley_HaikuOS/issues/new/choose)
+with your `VERSION`, Haiku revision and `log.txt`.
+
+## Building from source
+
+The managed parts are platform-neutral and build on Linux (or on Haiku with the
+.NET SDK). Requires the .NET 8 SDK, git, curl, zip/unzip.
 
 ```sh
 git clone https://github.com/Techniix/Stardew-Valley_HaikuOS
-git clone -b portmaster-stardew-mainline https://github.com/Producdevity/MonoGame
 cd Stardew-Valley_HaikuOS
 ./haiku/build-managed.sh        # -> haiku/out/StardewValley-haiku.zip
 ```
 
-Unzip on Haiku and run `./build-native.sh` there.
+The script clones the MonoGame fork at a pinned commit into `../MonoGame` if
+it's missing, applies [`patches/monogame/`](patches/monogame/), fetches SMAPI
+(checksum-verified) and assembles the package. The native shims are built on
+Haiku by `setup.sh`.
+
+CI ([`.github/workflows/haiku-package.yml`](.github/workflows/haiku-package.yml))
+builds the package on every push; pushing a `haiku-v*` tag publishes a release.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Roadmap
 
-- [ ] First boot on real hardware: title screen, audio, input
-- [ ] Confirm SMAPI/Harmony on real Haiku hardware
-- [ ] `.hpkg` with icon and Deskbar entry, HaikuDepot submission
-- [ ] GOG downloader (e.g. lgogdownloader) alongside Steam
+- [x] Game launches on real Haiku hardware
+- [x] Setup script, Steam download, Deskbar entry
+- [ ] Confirm SMAPI/Harmony on Haiku
 - [ ] Gamepad testing
+- [ ] `.hpkg` package and HaikuDepot submission
+- [ ] GOG downloader alongside Steam
+- [ ] Upstream fixes: SteamKit2 (`PlatformNotSupportedException` fallback),
+      MonoGame Haiku support, .NET `NetworkInterface` on Haiku
 
 ## Credits & license
 
 - Original PortMaster port, MonoGame fork, patcher and shims:
   [Producdevity](https://github.com/Producdevity)
 - .NET for Haiku: [trungnt2910](https://github.com/trungnt2910)
+- SMAPI: [Pathoschild](https://github.com/Pathoschild/SMAPI);
+  DepotDownloader/SteamKit2: [SteamRE](https://github.com/SteamRE)
 - Haiku port: Dalton Singleton ([@Techniix](https://github.com/Techniix))
 
 MIT, see [`LICENSE`](LICENSE). Third-party components and the game-files policy

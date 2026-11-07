@@ -1,20 +1,52 @@
 # Contributing
 
-Please reach out in the PortMaster Discord server first if you have questions or
-want to contribute and do not contribute AI generated code that you do not understand.
+Bug reports and fixes are welcome. Please use the issue templates and include
+your package `VERSION`, Haiku revision and `log.txt`.
 
-## Local Requirements
+**Never commit or attach Stardew Valley game files**, and never paste anything
+containing your Steam password.
 
-- Docker with Linux ARM64 emulation support.
-- A legal Steam mainline Stardew Valley install for validation. GOG builds are not currently validated.
-- The patched MonoGame checkout at `../MonoGame/`, using the
-  [`portmaster-stardew-mainline`](https://github.com/Producdevity/MonoGame/tree/portmaster-stardew-mainline)
-  branch of `Producdevity/MonoGame`.
+## Repository layout
 
-## Workflow
+| Path | What it is |
+|---|---|
+| `haiku/` | Haiku launcher, setup, Steam downloader and build scripts |
+| `patches/monogame/` | Haiku patches for the MonoGame fork (Ms-PL) |
+| `build/src/MainlineGameDataPatcher/` | Patcher shared with the PortMaster build (Mono.Cecil) |
+| `build/src/native/` | Native shims (C) |
+| `portmaster_stardewvalley_mainline/`, `build/scripts/`, `scripts/` | Upstream PortMaster package; keep it working |
 
-1. Build with `./build/scripts/build-mainline.sh`.
-2. Review `build/out/mainline/release/stardewvalleymainline.zip`.
-3. Export to the sparse PortMaster-New checkout with `./scripts/export-portmaster-tree.sh`.
-4. Run PortMaster repository checks from that checkout.
-5. Test on hardware before opening or updating a PortMaster PR.
+## Building and testing
+
+```sh
+./haiku/build-managed.sh                    # build the package on Linux
+shellcheck -S warning haiku/*.sh            # CI runs this too
+```
+
+Test on Haiku with a real copy of the game: `./setup.sh`, then
+`./StardewValley.sh`, and if you touched mod handling, at least one SMAPI mod.
+
+## Changing MonoGame
+
+Work in `../MonoGame` on top of the pinned commit in
+`haiku/build-managed.sh`, commit there, then regenerate the patches:
+
+```sh
+git -C ../MonoGame format-patch -N <pinned-commit> -o "$PWD/patches/monogame/"
+```
+
+## Patcher changes
+
+`MainlineGameDataPatcher` is also used by the PortMaster build. New behaviour
+must be opt-in via arguments so the PortMaster defaults stay unchanged.
+
+## Releases
+
+Push a tag named `haiku-vX.Y.Z`; CI builds the package and publishes a GitHub
+release with `StardewValley-haiku.zip`.
+
+## Upstream work
+
+Where possible, fix things upstream too: MonoGame Haiku support, the SteamKit2
+machine-ID fallback (`PlatformNotSupportedException`), and `NetworkInterface`
+in .NET for Haiku.

@@ -22,7 +22,18 @@ The first launch patches the game files for Haiku. Output goes to log.txt.
 Other commands:
     ./get-game-steam.sh           download/update the game from Steam
     ./get-game-steam.sh --qr      same, logging in by QR code (Steam mobile app)
-    SDV_FORCE_PATCH=1 ./StardewValley.sh   re-patch the game files
+    SDV_MAX_DOWNLOADS=2 ./get-game-steam.sh   fewer parallel downloads if it stalls
+    SDV_FORCE_PATCH=1 ./StardewValley.sh      re-patch the game files
+    SDV_VANILLA=1 ./StardewValley.sh          play without mods
+
+If a download stops progressing, it's restarted automatically after 3 minutes
+and resumes where it left off.
+
+Mods: unzip SMAPI mods into Mods/ (each in its own folder with a
+manifest.json). The launcher starts SMAPI automatically when mods are present.
+
+Logs: log.txt here; SMAPI: ~/.config/StardewValley/ErrorLogs/SMAPI-latest.txt
+Saves: ~/.config/StardewValley/Saves
 
 GOG or copied files: put the contents of your Stardew Valley folder (the one
 containing "Stardew Valley.dll") into gamedata/ and run ./setup.sh --no-game.

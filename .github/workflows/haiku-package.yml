@@ -1,0 +1,50 @@
+name: Haiku package
+
+on:
+  push:
+    branches: [main]
+    tags: ["haiku-v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Lint shell scripts
+        run: |
+          sudo apt-get install -y -qq shellcheck
+          shellcheck -S warning haiku/*.sh
+
+      - name: Build managed parts and assemble package
+        run: ./haiku/build-managed.sh
+
+      - name: Check native shims compile
+        run: ./haiku/build-native.sh /tmp/shim-check
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StardewValley-haiku
+          path: haiku/out/StardewValley-haiku.zip
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/haiku-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: haiku/out/StardewValley-haiku.zip
+          generate_release_notes: true
+          body: |
+            Unzip on Haiku (x86_64), then run `./setup.sh` in Terminal.
+            Contains no game files; you need your own copy of Stardew Valley.
+            See the README for details.
