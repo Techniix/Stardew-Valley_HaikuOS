@@ -26,11 +26,12 @@ and the control thread segfaults in `BTimeSource::GetTime()` reading `fBuf`.
 
 - `fBuf` (rcx) is non-NULL, but no area in the team covers that address, and
   there is no `__cloned_timesource_buf_*` area in the team at all.
-- It also happens during process teardown: in one run the app's main thread
-  had already died from an unhandled .NET exception, and the control thread
-  then crashed the same way while the process was exiting. So nodes being
-  released or time sources being dropped at exit hit the same unprotected
-  window.
+- It happens during process teardown: in every run where the app's own log
+  was available, the main thread had already died from an unhandled .NET
+  exception, and the control thread then crashed this way while the process
+  was exiting. So nodes being released or time sources being dropped at exit
+  hit the same unprotected window. (The original trigger in those runs was an
+  unrelated app bug, since fixed.)
 
 ## Analysis (current master)
 
@@ -62,5 +63,6 @@ switched over (protected by a lock shared with `TimeSource()`). Separately,
 
 ## Workaround used by applications
 
-Restarting the media services has made it go away in practice; playing
-without the Media Kit (OpenAL null output) avoids it entirely.
+Avoiding the abnormal exit avoids it in practice; playing without the Media
+Kit (OpenAL null output) avoids it entirely. Restarting the media services
+appeared to help once, but that was likely coincidence.

@@ -83,12 +83,18 @@ platform-neutral .NET, so the game itself doesn't need porting. What it runs
   playback thread still uses it (details and upstream report:
   [`docs/upstream/haiku-media-timesource-race.md`](docs/upstream/haiku-media-timesource-race.md)).
   It's timing-dependent, so the launcher changes nothing up front. It also
-  fires while the process tears down after some *other* failure, so a debug
-  report showing it isn't proof that audio was the cause: the launcher first
-  checks the log for an error from the game itself and reports that instead.
+  fires while the process tears down after some *other* failure (in every
+  case so far where we had the game's log, that's when it happened), so a
+  debug report showing it isn't proof that audio was the cause: the launcher
+  first checks the log for an error from the game itself and reports that
+  instead.
   For a plain crash, it offers to **restart the media services and retry**
   (a small helper, `libs/sdv-media-helper`, does what Preferences → Media
   does) or to **play without sound**.
+- **Working directory:** SDL2 on Haiku changes the working directory to the
+  executable's folder (`dotnet/`) when started from Deskbar/Tracker (no
+  `TERM` set). The game loads some content via relative paths, so that broke
+  Deskbar launches. The launcher sets `TERM` so SDL leaves it alone.
 - **Exception log:** `logs/exceptions.txt` records every .NET exception as
   it's thrown (via `StardewPatches.dll`, loaded before the game), so errors
   the game wraps (e.g. "Could not load … asset!") keep their real cause.

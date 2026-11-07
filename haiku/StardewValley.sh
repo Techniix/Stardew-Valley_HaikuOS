@@ -182,6 +182,12 @@ else
   unset SMAPI_MODS_PATH SMAPI_USE_CURRENT_SHELL
 fi
 cd "$GAMEDIR/gamedata" || exit 1
+# SDL2 on Haiku chdir()s to the executable's folder (here: dotnet/) when TERM
+# is unset, i.e. when started from Deskbar/Tracker. The game opens some
+# content with paths relative to the working directory, so that breaks
+# loading ("Could not load Data\BigCraftables asset!"). Setting TERM keeps
+# SDL from changing directory. See SDL src/main/haiku/SDL_BeApp.cc.
+export TERM="${TERM:-dumb}"
 
 retried=0
 while :; do
@@ -214,7 +220,7 @@ Details are in log.txt and logs/exceptions.txt in the game folder. Please includ
   retried=1
   alert --warning "Stardew Valley crashed.
 
-If the debug report showed BTimeSource::GetTime, this is a known Haiku media kit bug that can hit when audio starts. Restarting the media services usually fixes it." \
+If the debug report showed BTimeSource::GetTime, this is a known Haiku media kit bug in the audio code. Restarting the media services may help; playing without sound avoids it." \
     "Quit" "Play without sound" "Restart media & retry" >/dev/null
   choice=$?
   case "$choice" in
