@@ -9,7 +9,8 @@
 #   libs/                     native shims built on Haiku (build-native.sh)
 #   dotnet/                   .NET for Haiku, if installed by setup.sh
 #   steam-depot/              pristine Steam download (get-game-steam.sh)
-#   Mods/                     SMAPI mods (SMAPI support: not wired up on Haiku yet)
+#   Mods/                     SMAPI mods; if any are present, the game starts through SMAPI
+#   tools/SMAPIBundle/        bundled SMAPI
 #   log.txt                   output of the last run
 
 set -u
@@ -67,10 +68,45 @@ if [ ! -f "$GAMEDIR/gamedata/Stardew Valley.deps.json" ] || [ ! -f "$GAMEDIR/gam
   fail "Incomplete game files in gamedata/ (deps.json or runtimeconfig.json missing)."
 fi
 
-# --- patch game files (once per game/port update) ---------------------------
+# --- vanilla or SMAPI? -------------------------------------------------------
+# Same rule as the PortMaster port: SMAPI starts automatically when Mods/
+# contains anything besides SMAPI's own ConsoleCommands/SaveBackup.
+# SDV_FORCE_SMAPI=1 forces SMAPI, SDV_VANILLA=1 forces the unmodded game.
+mkdir -p "$GAMEDIR/Mods"
+# shellcheck source=/dev/null
+source "$GAMEDIR/tools/smapi-common"
+launch_mode="$(sdv_smapi_determine_mode "$GAMEDIR/Mods")"
+[ "${SDV_VANILLA:-0}" = 1 ] && launch_mode=vanilla
+echo "Launch mode: $launch_mode"
+
+patcher_args=(
+  --game-dir "$GAMEDIR/gamedata"
+  --overlay-dir "$GAMEDIR/overrides/gamedata"
+  --mods-dir "$GAMEDIR/Mods"
+  --profile desktop
+  --runtime-target ".NETCoreApp,Version=v6.0/haiku-x64"
+  --framework-version "$runtime_version"
+  --roll-forward LatestMajor
+)
+entry_assembly="Stardew Valley.dll"
+patch_assembly="$GAMEDIR/dlls/StardewPatches.dll"
+if [ "$launch_mode" = smapi ]; then
+  sdv_smapi_sync_default_mods "$GAMEDIR/tools/SMAPIBundle/default-mods" "$GAMEDIR/Mods"
+  patcher_args+=(
+    --smapi-bundle-dir "$GAMEDIR/tools/SMAPIBundle/game-root"
+    --smapi-patch-assembly "$GAMEDIR/dlls/StardewPatches.dll"
+  )
+  entry_assembly="StardewModdingAPI.dll"
+  patch_assembly="$GAMEDIR/gamedata/smapi-internal/StardewPatches.dll"
+fi
+
+# --- patch game files (once per game/port update or mode switch) ------------
+# The patcher also fixes up mod assemblies, so re-run it when Mods/ changes.
 stamp="$GAMEDIR/gamedata/.haiku-patched"
 needs_patch=0
 [ -f "$stamp" ] || needs_patch=1
+[ "$needs_patch" = 0 ] && [ "$(cat "$stamp" 2>/dev/null)" != "$launch_mode $runtime_version" ] && needs_patch=1
+[ "$needs_patch" = 0 ] && [ -n "$(find "$GAMEDIR/Mods" -newer "$stamp" -print -quit 2>/dev/null)" ] && needs_patch=1
 for f in "$GAMEDIR/gamedata/Stardew Valley.deps.json" \
          "$GAMEDIR/overrides/gamedata/MonoGame.Framework.dll" \
          "$GAMEDIR/tools/MainlineGameDataPatcher/MainlineGameDataPatcher.dll"; do
@@ -80,22 +116,23 @@ done
 
 if [ "$needs_patch" = 1 ] || [ "${SDV_FORCE_PATCH:-0}" = 1 ]; then
   echo "Patching game files for Haiku..."
-  "$DOTNET" "$GAMEDIR/tools/MainlineGameDataPatcher/MainlineGameDataPatcher.dll" \
-    --game-dir "$GAMEDIR/gamedata" \
-    --overlay-dir "$GAMEDIR/overrides/gamedata" \
-    --mods-dir "$GAMEDIR/Mods" \
-    --profile desktop \
-    --runtime-target ".NETCoreApp,Version=v6.0/haiku-x64" \
-    --framework-version "$runtime_version" \
-    --roll-forward LatestMajor \
+  "$DOTNET" "$GAMEDIR/tools/MainlineGameDataPatcher/MainlineGameDataPatcher.dll" "${patcher_args[@]}" \
     || fail "Patching the game files failed. See log.txt."
-  touch "$stamp"
+  echo "$launch_mode $runtime_version" > "$stamp"
 fi
 
 # --- run --------------------------------------------------------------------
-export MONOGAME_PATCH="$GAMEDIR/dlls/StardewPatches.dll"
+export MONOGAME_PATCH="$patch_assembly"
+if [ "$launch_mode" = smapi ]; then
+  export SMAPI_MODS_PATH="$GAMEDIR/Mods"
+  # Keep SMAPI's console output in this terminal / log.txt instead of
+  # letting it try to open a Linux terminal emulator.
+  export SMAPI_USE_CURRENT_SHELL=true
+else
+  unset SMAPI_MODS_PATH SMAPI_USE_CURRENT_SHELL
+fi
 cd "$GAMEDIR/gamedata" || exit 1
-"$DOTNET" "Stardew Valley.dll" "$@"
+"$DOTNET" "$entry_assembly" "$@"
 status=$?
 echo "Stardew Valley exited with status $status."
 exit $status

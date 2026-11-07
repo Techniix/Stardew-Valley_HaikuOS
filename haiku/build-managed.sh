@@ -17,6 +17,11 @@ MONOGAME_ROOT="${MONOGAME_ROOT:-"$ROOT/../MonoGame"}"
 OUT="$ROOT/haiku/out/StardewValley"
 WORK="$ROOT/haiku/out/work"
 
+# SMAPI (LGPL-3.0) is bundled so mods work out of the box.
+SMAPI_VERSION="${SMAPI_VERSION:-4.5.2}"
+SMAPI_SHA256="${SMAPI_SHA256:-dd01ddca7b566bfe0d3b3d2d03833496abc56c53da976241f2ab443f5484acc4}"
+SMAPI_TOOLKIT_FILES=(SMAPI.Toolkit.dll SMAPI.Toolkit.xml SMAPI.Toolkit.CoreInterfaces.dll SMAPI.Toolkit.CoreInterfaces.xml)
+
 command -v dotnet >/dev/null || { echo "dotnet SDK not found" >&2; exit 1; }
 [ -d "$MONOGAME_ROOT/MonoGame.Framework" ] || {
   echo "MonoGame fork not found at $MONOGAME_ROOT" >&2
@@ -51,6 +56,21 @@ dotnet build "$ROOT/build/src/StardewPatches.Mainline/StardewPatches.Mainline.cs
 dotnet publish "$ROOT/build/src/MainlineGameDataPatcher/MainlineGameDataPatcher.csproj" \
   -c Release -nologo -v quiet -o "$WORK/patcher"
 
+echo "== Fetching SMAPI $SMAPI_VERSION"
+smapi_zip="$WORK/smapi.zip"
+curl -fsSL "https://github.com/Pathoschild/SMAPI/releases/download/$SMAPI_VERSION/SMAPI-$SMAPI_VERSION-installer.zip" -o "$smapi_zip"
+actual="$(sha256sum "$smapi_zip" | awk '{print $1}')"
+[ "$actual" = "$SMAPI_SHA256" ] || { echo "SMAPI checksum mismatch: $actual" >&2; exit 1; }
+curl -fsSL "https://raw.githubusercontent.com/Pathoschild/SMAPI/$SMAPI_VERSION/LICENSE.txt" -o "$WORK/LICENSE.SMAPI.txt"
+unzip -oq "$smapi_zip" -d "$WORK/smapi-installer"
+smapi_installer="$WORK/smapi-installer/SMAPI $SMAPI_VERSION installer"
+# SMAPI's Linux payload is the right one: Haiku is a Unix and SMAPI treats it as Linux.
+unzip -oq "$smapi_installer/internal/linux/install.dat" -d "$WORK/smapi-payload"
+for f in StardewModdingAPI.dll StardewModdingAPI.runtimeconfig.json smapi-internal/0Harmony.dll \
+         Mods/ConsoleCommands/manifest.json Mods/SaveBackup/manifest.json; do
+  [ -e "$WORK/smapi-payload/$f" ] || { echo "SMAPI payload is missing $f" >&2; exit 1; }
+done
+
 echo "== Assembling $OUT"
 rm -rf "$OUT"
 mkdir -p "$OUT"/{gamedata,overrides/gamedata,tools/MainlineGameDataPatcher,dlls,libs,Mods,native-src,licenses}
@@ -64,6 +84,21 @@ cp "$ROOT/LICENSE" "$OUT/licenses/LICENSE.Port.txt"
 for f in LICENSE.MonoGame.txt LICENSE.Mono.Cecil.txt; do
   cp "$ROOT/portmaster_stardewvalley_mainline/stardewvalleymainline/licenses/$f" "$OUT/licenses/"
 done
+# SMAPI bundle: copied into gamedata/ by the patcher when mods are installed.
+mkdir -p "$OUT/tools/SMAPIBundle/game-root" "$OUT/tools/SMAPIBundle/default-mods"
+cp -R "$WORK/smapi-payload/." "$OUT/tools/SMAPIBundle/game-root/"
+rm -rf "$OUT/tools/SMAPIBundle/game-root/Mods"
+for mod in ConsoleCommands SaveBackup; do
+  cp -R "$WORK/smapi-payload/Mods/$mod" "$OUT/tools/SMAPIBundle/default-mods/$mod"
+  for f in "${SMAPI_TOOLKIT_FILES[@]}"; do
+    cp "$WORK/smapi-payload/smapi-internal/$f" "$OUT/tools/SMAPIBundle/default-mods/$mod/"
+  done
+done
+cp "$smapi_installer/README.txt" "$OUT/tools/SMAPIBundle/README.SMAPI.txt"
+cp "$WORK/LICENSE.SMAPI.txt" "$OUT/licenses/LICENSE.SMAPI.txt"
+cp "$ROOT/portmaster_stardewvalley_mainline/stardewvalleymainline/licenses/LICENSE.Harmony.txt" "$OUT/licenses/"
+cp "$ROOT/portmaster_stardewvalley_mainline/stardewvalleymainline/tools/smapi-common" "$OUT/tools/smapi-common"
+
 chmod +x "$OUT"/*.sh
 touch "$OUT/gamedata/.keep" "$OUT/Mods/.keep"
 
