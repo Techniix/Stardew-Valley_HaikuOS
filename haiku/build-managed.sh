@@ -57,14 +57,14 @@ mkdir -p "$OUT"/{gamedata,overrides/gamedata,tools/MainlineGameDataPatcher,dlls,
 cp "$framework_dll" "$OUT/overrides/gamedata/MonoGame.Framework.dll"
 cp "$WORK/patches/StardewPatches.dll" "$OUT/dlls/StardewPatches.dll"
 cp -R "$WORK/patcher/." "$OUT/tools/MainlineGameDataPatcher/"
-cp "$ROOT/haiku/StardewValley.sh" "$ROOT/haiku/build-native.sh" "$OUT/"
+cp "$ROOT/haiku/StardewValley.sh" "$ROOT/haiku/build-native.sh" "$ROOT/haiku/setup.sh" "$ROOT/haiku/get-game-steam.sh" "$OUT/"
 cp "$ROOT"/build/src/native/*.c "$OUT/native-src/"
 cp "$ROOT/haiku/INSTALL.txt" "$OUT/"
 cp "$ROOT/LICENSE" "$OUT/licenses/LICENSE.Port.txt"
 for f in LICENSE.MonoGame.txt LICENSE.Mono.Cecil.txt; do
   cp "$ROOT/portmaster_stardewvalley_mainline/stardewvalleymainline/licenses/$f" "$OUT/licenses/"
 done
-chmod +x "$OUT/StardewValley.sh" "$OUT/build-native.sh"
+chmod +x "$OUT"/*.sh
 touch "$OUT/gamedata/.keep" "$OUT/Mods/.keep"
 
 ( cd "$ROOT/haiku/out" && rm -f StardewValley-haiku.zip && zip -qr StardewValley-haiku.zip StardewValley )

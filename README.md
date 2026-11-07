@@ -13,8 +13,8 @@ Stardew Valley is a .NET 6 game built on MonoGame. Its game code is
 platform-neutral .NET, so it doesn't need to be ported. What it runs *on* does:
 
 - **.NET runtime:** [trungnt2910/dotnet-builds](https://github.com/trungnt2910/dotnet-builds)
-  (8.0 or newer). Haiku has no .NET 6, so the game runs on the newest
-  installed runtime via `rollForward: LatestMajor`.
+  (9.0 or newer; `setup.sh` installs 10). Haiku has no .NET 6, so the game
+  runs on the newest installed runtime via `rollForward: LatestMajor`.
 - **MonoGame:** the game's bundled `MonoGame.Framework.dll` is replaced with a
   build of [Producdevity's Stardew-compatible MonoGame fork](https://github.com/Producdevity/MonoGame/tree/portmaster-stardew-mainline)
   plus Haiku patches ([`patches/monogame/`](patches/monogame/)).
@@ -26,6 +26,9 @@ platform-neutral .NET, so it doesn't need to be ported. What it runs *on* does:
   `user32`/`imm32` calls, plus an SDL2 clipboard bridge. They're built on Haiku
   by `build-native.sh`.
 - **System libraries:** SDL2 and OpenAL from HaikuPorts, OpenGL through Mesa.
+- **Game download:** `get-game-steam.sh` fetches your own copy straight from
+  Steam with [DepotDownloader](https://github.com/SteamRE/DepotDownloader),
+  which itself runs on .NET for Haiku. No Windows or Linux machine needed.
 
 ## How this differs from other ports
 
@@ -43,7 +46,8 @@ this project aims to make it repeatable and robust:
 | Audio | Bundled MonoGame audio, unconfirmed | Fork with OpenAL fixes (loop-state reset, effect filtering, dedicated audio worker) |
 | Mods (SMAPI) | No | Planned, via the PortMaster SMAPI bundling |
 | Source | Not published | This repository, MIT |
-| Install | Follow forum steps | `StardewValley.sh` launcher; `.hpkg` planned |
+| Getting the game | Copy files over from another machine | Download from Steam directly on Haiku (`get-game-steam.sh`), or copy |
+| Install | Follow forum steps | `setup.sh` installs packages, .NET, shims, game and Deskbar entry; `.hpkg` planned |
 
 ### vs. the PortMaster port it's based on ([Producdevity/portmaster-stardew-valley-mainline](https://github.com/Producdevity/portmaster-stardew-valley-mainline))
 
@@ -62,20 +66,36 @@ The Haiku differences:
   `--roll-forward` options. PortMaster defaults are unchanged.
 - **No GL4ES or PortMaster tooling:** native OpenGL through Haiku's Mesa, no
   gptokeyb.
+- **Setup and game download on the device:** `setup.sh` and
+  `get-game-steam.sh` replace copying files from a PC.
 - **Build fix:** `bootstrap-monogame-thirdparty.sh` now fetches the pinned
   NVorbis commit directly (a shallow clone couldn't check it out).
 
 ## Install (Haiku)
 
-See [`haiku/INSTALL.txt`](haiku/INSTALL.txt). Short version:
+Unzip the release (or build it, below), then in Terminal:
 
 ```sh
-pkgman install libsdl2 openal gcc haiku_devel
-# install .NET 8+ from github.com/trungnt2910/dotnet-builds
-./build-native.sh
-# copy your Stardew Valley folder (with "Stardew Valley.dll") into gamedata/
-./StardewValley.sh
+./setup.sh
 ```
+
+`setup.sh` does everything, skipping steps that are already done:
+
+1. installs SDL2, OpenAL, gcc and the .NET dependencies with `pkgman`
+2. installs .NET 10 for Haiku into `./dotnet`, unless .NET 9+ is already installed
+3. builds the native shims
+4. offers to download Stardew Valley from Steam. You log in with your own
+   account (username + password + Steam Guard, or a QR code via `--qr`). Your
+   password and Steam Guard code go straight to DepotDownloader; these scripts
+   never see or store them.
+5. adds Stardew Valley to the Deskbar Applications menu
+
+Then launch from the Deskbar or with `./StardewValley.sh`. Run
+`./get-game-steam.sh` again to update the game.
+
+GOG or already-copied files: put your Stardew Valley folder's contents (with
+`Stardew Valley.dll`) into `gamedata/` and run `./setup.sh --no-game`.
+See [`haiku/INSTALL.txt`](haiku/INSTALL.txt).
 
 ## Build
 
@@ -96,7 +116,7 @@ Unzip on Haiku and run `./build-native.sh` there.
 - [ ] First boot on real hardware: title screen, audio, input
 - [ ] SMAPI mod support
 - [ ] `.hpkg` with icon and Deskbar entry, HaikuDepot submission
-- [ ] Optional bundled .NET runtime
+- [ ] GOG downloader (e.g. lgogdownloader) alongside Steam
 - [ ] Gamepad testing
 
 ## Credits & license

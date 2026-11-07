@@ -7,6 +7,8 @@
 #   tools/MainlineGameDataPatcher/
 #   dlls/StardewPatches.dll
 #   libs/                     native shims built on Haiku (build-native.sh)
+#   dotnet/                   .NET for Haiku, if installed by setup.sh
+#   steam-depot/              pristine Steam download (get-game-steam.sh)
 #   Mods/                     SMAPI mods (SMAPI support: not wired up on Haiku yet)
 #   log.txt                   output of the last run
 
@@ -37,7 +39,7 @@ if [ -z "${DOTNET_ROOT:-}" ]; then
   fi
 fi
 [ -n "${DOTNET_ROOT:-}" ] && [ -x "$DOTNET_ROOT/dotnet" ] \
-  || fail "No .NET runtime found. Install one from github.com/trungnt2910/dotnet-builds or set DOTNET_ROOT."
+  || fail "No .NET runtime found. Run ./setup.sh first."
 export DOTNET_ROOT
 DOTNET="$DOTNET_ROOT/dotnet"
 
@@ -59,7 +61,7 @@ if [ ! -f "$GAMEDIR/gamedata/Stardew Valley.dll" ]; then
   if [ -f "$GAMEDIR/gamedata/Stardew Valley.exe" ] || [ -f "$GAMEDIR/gamedata/StardewValley.exe" ]; then
     fail "These are the old compatibility-branch files. Copy the regular (mainline) 1.6 game files into gamedata/."
   fi
-  fail "Missing game files. Copy your Stardew Valley install (Windows Steam or GOG) into $GAMEDIR/gamedata/."
+  fail "Missing game files. Run ./get-game-steam.sh to download them from Steam, or copy your Stardew Valley install (Windows Steam or GOG) into $GAMEDIR/gamedata/."
 fi
 if [ ! -f "$GAMEDIR/gamedata/Stardew Valley.deps.json" ] || [ ! -f "$GAMEDIR/gamedata/Stardew Valley.runtimeconfig.json" ]; then
   fail "Incomplete game files in gamedata/ (deps.json or runtimeconfig.json missing)."
