@@ -7,13 +7,17 @@ and can download your own copy of the game straight from Steam on Haiku.
 **This project contains no game files.** You need to own Stardew Valley
 (Steam, or the Windows build from GOG).
 
-> **Status: early but working.** The game runs with sound on real hardware
-> (Haiku hrev60368, Ryzen 5 7600X, RTX 5070). SMAPI/mods and gamepads are
-> not confirmed yet. Bug reports with `log.txt` are very welcome.
+> **Status: early but working.** Setup, Steam download, updating an
+> existing install and the game itself (with sound) are confirmed on real
+> hardware (Haiku hrev60368, Ryzen 5 7600X, RTX 5070). Not confirmed yet:
+> SMAPI/mods, gamepads, direct-IP multiplayer. Online play via Steam
+> friends or invite codes isn't possible on Haiku (see
+> [Multiplayer](#multiplayer)). Bug reports with `log.txt` are very welcome.
 
 - [Quick start](#quick-start)
 - [How it works](#how-it-works)
 - [How this differs from other ports](#how-this-differs-from-other-ports)
+- [Multiplayer](#multiplayer)
 - [Mods (SMAPI)](#mods-smapi)
 - [Troubleshooting](#troubleshooting)
 - [Building from source](#building-from-source)
@@ -150,6 +154,27 @@ differences:
 - **Setup and game download on the device** instead of copying from a PC.
 - **Build fix:** `bootstrap-monogame-thirdparty.sh` fetches the pinned NVorbis
   commit directly (a shallow clone couldn't check it out).
+
+## Multiplayer
+
+| Method | On Haiku |
+|---|---|
+| Steam friends list, Steam invitations, invite codes | **Not available.** These need a running Steam client (or GOG Galaxy) signed in on the same machine. Neither exists for Haiku, so the game hides these options. |
+| Direct IP / LAN | **Should work** (not yet confirmed). Needs no Steam or GOG client. |
+
+Direct IP works across platforms, so a Haiku player can join a friend on
+Windows, macOS or Linux, or host for them:
+
+- **Joining:** Co-op → Join → **Join LAN Game**, then enter the host's
+  IP address (LAN address, or their public IP for internet play).
+- **Hosting:** in the game's Options, under Multiplayer, make sure
+  **Accept IP connections** is on. For internet play, forward **UDP port
+  24642** on your router to your Haiku machine, then give your friend your
+  public IP. Same network: give them your LAN address.
+
+Steam/GOG online play could only come back with a working Steam or Galaxy
+client on Haiku (for example through a Linux compatibility layer). That's
+outside this project for now.
 
 ## Mods (SMAPI)
 
@@ -294,6 +319,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 - [ ] Get the media kit time-source race fixed in Haiku
 - [ ] Confirm SMAPI/Harmony on Haiku
 - [ ] Gamepad testing
+- [ ] Confirm direct-IP multiplayer (host and join)
 - [ ] `.hpkg` package and HaikuDepot submission
 - [ ] GOG downloader alongside Steam
 - [ ] Upstream fixes: SteamKit2 (`PlatformNotSupportedException` fallback),

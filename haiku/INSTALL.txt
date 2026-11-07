@@ -39,6 +39,11 @@ and resumes where it left off.
 Mods: unzip SMAPI mods into Mods/ (each in its own folder with a
 manifest.json). The launcher starts SMAPI automatically when mods are present.
 
+Multiplayer: Steam friends/invite codes need the Steam or GOG Galaxy client,
+which don't exist on Haiku. Use direct IP instead: Co-op > Join > Join LAN
+Game and enter the host's IP. To host, keep "Accept IP connections" on in
+Options and forward UDP port 24642 for internet play.
+
 Logs: log.txt here; SMAPI: ~/.config/StardewValley/ErrorLogs/SMAPI-latest.txt
 Saves: ~/.config/StardewValley/Saves
 
