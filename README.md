@@ -211,15 +211,15 @@ Notes:
 | Steam friends list, Steam invitations, invite codes | **Not available.** These need a running Steam client (or GOG Galaxy) signed in on the same machine. Neither exists for Haiku, so the game hides these options. |
 | Direct IP / LAN | **Should work** (not yet confirmed). Needs no Steam or GOG client. |
 
-Direct IP works across platforms, so a Haiku player can join a friend on
-Windows, macOS or Linux, or host for them:
+Direct IP works across platforms: a Haiku player can join a host on
+Windows, macOS or Linux, or host for players on those platforms:
 
 - **Joining:** Co-op → Join → **Join LAN Game**, then enter the host's
   IP address (LAN address, or their public IP for internet play).
 - **Hosting:** in the game's Options, under Multiplayer, make sure
   **Accept IP connections** is on. For internet play, forward **UDP port
-  24642** on your router to your Haiku machine, then give your friend your
-  public IP. Same network: give them your LAN address.
+  24642** on your router to your Haiku machine, then share your public IP
+  with the other players. On the same network, share your LAN address.
 
 Steam/GOG online play could only come back with a working Steam or Galaxy
 client on Haiku (for example through a Linux compatibility layer). That's
