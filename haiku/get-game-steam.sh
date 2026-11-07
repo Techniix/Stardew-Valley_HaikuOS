@@ -16,7 +16,7 @@
 
 set -euo pipefail
 
-GAMEDIR="$(cd -- "$(dirname -- "$0")" && pwd)"
+GAMEDIR="$(cd -- "$(dirname -- "$(readlink -f -- "$0")")" && pwd)"
 APP_ID=413150
 
 DD_VERSION="3.4.0"
@@ -75,6 +75,14 @@ if [ ! -f "$DD_DIR/DepotDownloader.dll" ] || [ "$(cat "$DD_DIR/.version" 2>/dev/
   unzip -q "$tmp/dd.zip" -d "$DD_DIR"
   echo "$DD_VERSION" > "$DD_DIR/.version"
 fi
+
+# Haiku's .NET doesn't implement NetworkInterface.GetAllNetworkInterfaces(),
+# which SteamKit2 calls after login to build a machine ID. Patch its fallback
+# so it copes (idempotent; also fixes earlier installs).
+DOTNET_ROLL_FORWARD=LatestMajor "$DOTNET_ROOT/dotnet" \
+  "$GAMEDIR/tools/MainlineGameDataPatcher/MainlineGameDataPatcher.dll" \
+  --patch-steamkit "$DD_DIR/SteamKit2.dll" \
+  || { echo "Failed to patch SteamKit2 for Haiku." >&2; exit 1; }
 
 # --- log in & download ----------------------------------------------------------
 login_args=()

@@ -1,0 +1,38 @@
+From 53f972ea54a80d3c58b1f7492637636ad6a235d6 Mon Sep 17 00:00:00 2001
+From: Dalton Singleton <blumoon94@gmail.com>
+Date: Sat, 7 Nov 2026 16:35:00 -0500
+Subject: [PATCH 3/3] Detect Haiku via RuntimeInformation.OSDescription
+
+CurrentPlatform uses a [DllImport("libc")] uname call, but Haiku's C
+library is libroot.so, so the import fails, the exception is swallowed,
+and Haiku would still be treated as macOS. Check the runtime's OS
+description first.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01AVRp8nockFeWgKbb4pQJh9
+---
+ MonoGame.Framework/Platform/Utilities/CurrentPlatform.cs | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/MonoGame.Framework/Platform/Utilities/CurrentPlatform.cs b/MonoGame.Framework/Platform/Utilities/CurrentPlatform.cs
+index a22635c00..f77c4d57b 100644
+--- a/MonoGame.Framework/Platform/Utilities/CurrentPlatform.cs
++++ b/MonoGame.Framework/Platform/Utilities/CurrentPlatform.cs
+@@ -43,6 +43,14 @@ namespace MonoGame.Framework.Utilities
+                     _os = OS.MacOSX;
+                     break;
+                 case PlatformID.Unix:
++                    // Haiku's C library is libroot.so, so the "libc" uname import
++                    // below does not resolve there. Ask the runtime instead.
++                    if (RuntimeInformation.OSDescription.IndexOf("Haiku", StringComparison.OrdinalIgnoreCase) >= 0)
++                    {
++                        _os = OS.Haiku;
++                        break;
++                    }
++
+                     _os = OS.MacOSX;
+ 
+                     var buf = IntPtr.Zero;
+-- 
+2.43.0
+

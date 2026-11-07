@@ -15,7 +15,7 @@
 
 set -u
 
-GAMEDIR="$(cd -- "$(dirname -- "$0")" && pwd)"
+GAMEDIR="$(cd -- "$(dirname -- "$(readlink -f -- "$0")")" && pwd)"
 cd "$GAMEDIR" || exit 1
 exec > >(tee "$GAMEDIR/log.txt") 2>&1
 
@@ -91,7 +91,6 @@ patcher_args=(
 entry_assembly="Stardew Valley.dll"
 patch_assembly="$GAMEDIR/dlls/StardewPatches.dll"
 if [ "$launch_mode" = smapi ]; then
-  sdv_smapi_sync_default_mods "$GAMEDIR/tools/SMAPIBundle/default-mods" "$GAMEDIR/Mods"
   patcher_args+=(
     --smapi-bundle-dir "$GAMEDIR/tools/SMAPIBundle/game-root"
     --smapi-patch-assembly "$GAMEDIR/dlls/StardewPatches.dll"
@@ -107,6 +106,12 @@ needs_patch=0
 [ -f "$stamp" ] || needs_patch=1
 [ "$needs_patch" = 0 ] && [ "$(cat "$stamp" 2>/dev/null)" != "$launch_mode $runtime_version" ] && needs_patch=1
 [ "$needs_patch" = 0 ] && [ -n "$(find "$GAMEDIR/Mods" -newer "$stamp" -print -quit 2>/dev/null)" ] && needs_patch=1
+
+# Refresh SMAPI's built-in mods only after the change check above, since
+# copying them updates their timestamps.
+if [ "$launch_mode" = smapi ]; then
+  sdv_smapi_sync_default_mods "$GAMEDIR/tools/SMAPIBundle/default-mods" "$GAMEDIR/Mods"
+fi
 for f in "$GAMEDIR/gamedata/Stardew Valley.deps.json" \
          "$GAMEDIR/overrides/gamedata/MonoGame.Framework.dll" \
          "$GAMEDIR/tools/MainlineGameDataPatcher/MainlineGameDataPatcher.dll"; do

@@ -7,7 +7,7 @@
 
 set -euo pipefail
 
-HERE="$(cd -- "$(dirname -- "$0")" && pwd)"
+HERE="$(cd -- "$(dirname -- "$(readlink -f -- "$0")")" && pwd)"
 SRC="${SDV_NATIVE_SRC:-"$HERE/native-src"}"
 [ -d "$SRC" ] || SRC="$HERE/../build/src/native"
 OUT="${1:-"$HERE/libs"}"

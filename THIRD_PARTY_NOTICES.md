@@ -13,7 +13,7 @@ Other components have their own licenses:
 | Haiku patches to MonoGame | [`patches/monogame/`](patches/monogame/) | Ms-PL, same as the MonoGame files they modify |
 | Mono.Cecil | used by `MainlineGameDataPatcher` | MIT, see `.../licenses/LICENSE.Mono.Cecil.txt` |
 | NVorbis, StbImageSharp, StbImageWriteSharp | MonoGame third-party sources, fetched at build time | their own licenses (MIT) |
-| DepotDownloader (SteamRE) | downloaded by `get-game-steam.sh` at run time (pinned version + SHA-256); **not** included in this repo or package | GPL-2.0, ships its own `LICENSE` |
+| DepotDownloader + SteamKit2 (SteamRE) | downloaded by `get-game-steam.sh` at run time (pinned version + SHA-256); **not** included in this repo or package. The user's local `SteamKit2.dll` gets a one-instruction patch (wider `catch` in the machine-ID fallback) | GPL-2.0 / LGPL-2.1, ship their own `LICENSE` |
 | .NET for Haiku and its installer (trungnt2910/dotnet-builds) | downloaded by `setup.sh` at run time; not included | .NET is MIT; see that repository |
 | SMAPI (Pathoschild) | bundled in the Haiku package (`tools/SMAPIBundle/`), fetched at build time with a pinned SHA-256 | LGPL-3.0, shipped as `licenses/LICENSE.SMAPI.txt` |
 | Harmony (Pardeike), part of SMAPI | bundled with SMAPI | MIT, `licenses/LICENSE.Harmony.txt` |

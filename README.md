@@ -29,6 +29,10 @@ platform-neutral .NET, so it doesn't need to be ported. What it runs *on* does:
 - **Game download:** `get-game-steam.sh` fetches your own copy straight from
   Steam with [DepotDownloader](https://github.com/SteamRE/DepotDownloader),
   which itself runs on .NET for Haiku. No Windows or Linux machine needed.
+  Haiku's .NET can't list network adapters yet, which crashes SteamKit2 (the
+  Steam library inside DepotDownloader) right after login. The script
+  patches that one fallback in your local copy so it uses SteamKit's
+  built-in placeholder machine ID instead.
 
 ## How this differs from other ports
 

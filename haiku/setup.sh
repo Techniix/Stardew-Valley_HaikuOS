@@ -17,7 +17,7 @@
 
 set -euo pipefail
 
-GAMEDIR="$(cd -- "$(dirname -- "$0")" && pwd)"
+GAMEDIR="$(cd -- "$(dirname -- "$(readlink -f -- "$0")")" && pwd)"
 cd "$GAMEDIR"
 
 DOTNET_CHANNEL="10.0"

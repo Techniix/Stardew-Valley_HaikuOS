@@ -1,7 +1,7 @@
 From 6ec71da471623d8df9045324b65a30c9a99ac52e Mon Sep 17 00:00:00 2001
 From: Dalton Singleton <blumoon94@gmail.com>
 Date: Sat, 7 Nov 2026 16:22:20 -0500
-Subject: [PATCH 2/2] Restore SDL mouse motion on Haiku
+Subject: [PATCH 2/3] Restore SDL mouse motion on Haiku
 
 The PortMaster branch disables mouse motion because handhelds synthesise
 the pointer. Desktop Haiku has a real mouse, so re-enable it there.
@@ -13,7 +13,7 @@ Claude-Session: https://claude.ai/code/session_01AVRp8nockFeWgKbb4pQJh9
  1 file changed, 7 insertions(+), 3 deletions(-)
 
 diff --git a/MonoGame.Framework/Platform/SDL/SDLGamePlatform.cs b/MonoGame.Framework/Platform/SDL/SDLGamePlatform.cs
-index 55585504..8edfa2b8 100644
+index 555855044..8edfa2b8d 100644
 --- a/MonoGame.Framework/Platform/SDL/SDLGamePlatform.cs
 +++ b/MonoGame.Framework/Platform/SDL/SDLGamePlatform.cs
 @@ -129,9 +129,13 @@ namespace Microsoft.Xna.Framework
