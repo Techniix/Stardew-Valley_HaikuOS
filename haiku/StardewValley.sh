@@ -1,0 +1,99 @@
+#!/bin/bash
+# Stardew Valley launcher for Haiku (x86_64).
+#
+# Layout (next to this script):
+#   gamedata/                 your own Stardew Valley files (Windows Steam or GOG build)
+#   overrides/gamedata/       Haiku-patched MonoGame.Framework.dll, copied over gamedata
+#   tools/MainlineGameDataPatcher/
+#   dlls/StardewPatches.dll
+#   libs/                     native shims built on Haiku (build-native.sh)
+#   Mods/                     SMAPI mods (SMAPI support: not wired up on Haiku yet)
+#   log.txt                   output of the last run
+
+set -u
+
+GAMEDIR="$(cd -- "$(dirname -- "$0")" && pwd)"
+cd "$GAMEDIR" || exit 1
+exec > >(tee "$GAMEDIR/log.txt") 2>&1
+
+fail() {
+  echo "ERROR: $*"
+  if command -v alert >/dev/null 2>&1; then
+    alert --stop "Stardew Valley: $*" "OK" >/dev/null
+  fi
+  exit 1
+}
+
+# --- .NET runtime -----------------------------------------------------------
+# Haiku has no .NET 6 build; the game runs on whatever newer runtime is
+# installed (trungnt2910/dotnet-builds), via rollForward=LatestMajor.
+if [ -z "${DOTNET_ROOT:-}" ]; then
+  if [ -x "$GAMEDIR/dotnet/dotnet" ]; then
+    DOTNET_ROOT="$GAMEDIR/dotnet"
+  elif [ -x "$HOME/.dotnet/dotnet" ]; then
+    DOTNET_ROOT="$HOME/.dotnet"
+  elif command -v dotnet >/dev/null 2>&1; then
+    DOTNET_ROOT="$(dirname -- "$(readlink -f "$(command -v dotnet)")")"
+  fi
+fi
+[ -n "${DOTNET_ROOT:-}" ] && [ -x "$DOTNET_ROOT/dotnet" ] \
+  || fail "No .NET runtime found. Install one from github.com/trungnt2910/dotnet-builds or set DOTNET_ROOT."
+export DOTNET_ROOT
+DOTNET="$DOTNET_ROOT/dotnet"
+
+# Haiku's networking stack has incomplete IPv6 support; .NET on Haiku needs this.
+export DOTNET_SYSTEM_NET_DISABLEIPV6=1
+# The patcher tool itself targets net6.0.
+export DOTNET_ROLL_FORWARD=LatestMajor
+
+runtime_version="$("$DOTNET" --list-runtimes 2>/dev/null | awk '/Microsoft.NETCore.App/ {print $2}' | sort -V | tail -n 1)"
+[ -n "$runtime_version" ] || fail "The .NET install at $DOTNET_ROOT has no Microsoft.NETCore.App runtime."
+echo "Using .NET runtime $runtime_version from $DOTNET_ROOT"
+
+# --- native libraries ---------------------------------------------------------
+# SDL2 and OpenAL come from HaikuPorts: pkgman install libsdl2 openal
+export LIBRARY_PATH="$GAMEDIR/libs:%A/libs${LIBRARY_PATH:+:$LIBRARY_PATH}"
+
+# --- game files -------------------------------------------------------------
+if [ ! -f "$GAMEDIR/gamedata/Stardew Valley.dll" ]; then
+  if [ -f "$GAMEDIR/gamedata/Stardew Valley.exe" ] || [ -f "$GAMEDIR/gamedata/StardewValley.exe" ]; then
+    fail "These are the old compatibility-branch files. Copy the regular (mainline) 1.6 game files into gamedata/."
+  fi
+  fail "Missing game files. Copy your Stardew Valley install (Windows Steam or GOG) into $GAMEDIR/gamedata/."
+fi
+if [ ! -f "$GAMEDIR/gamedata/Stardew Valley.deps.json" ] || [ ! -f "$GAMEDIR/gamedata/Stardew Valley.runtimeconfig.json" ]; then
+  fail "Incomplete game files in gamedata/ (deps.json or runtimeconfig.json missing)."
+fi
+
+# --- patch game files (once per game/port update) ---------------------------
+stamp="$GAMEDIR/gamedata/.haiku-patched"
+needs_patch=0
+[ -f "$stamp" ] || needs_patch=1
+for f in "$GAMEDIR/gamedata/Stardew Valley.deps.json" \
+         "$GAMEDIR/overrides/gamedata/MonoGame.Framework.dll" \
+         "$GAMEDIR/tools/MainlineGameDataPatcher/MainlineGameDataPatcher.dll"; do
+  [ "$needs_patch" = 1 ] && break
+  [ "$f" -nt "$stamp" ] && needs_patch=1
+done
+
+if [ "$needs_patch" = 1 ] || [ "${SDV_FORCE_PATCH:-0}" = 1 ]; then
+  echo "Patching game files for Haiku..."
+  "$DOTNET" "$GAMEDIR/tools/MainlineGameDataPatcher/MainlineGameDataPatcher.dll" \
+    --game-dir "$GAMEDIR/gamedata" \
+    --overlay-dir "$GAMEDIR/overrides/gamedata" \
+    --mods-dir "$GAMEDIR/Mods" \
+    --profile desktop \
+    --runtime-target ".NETCoreApp,Version=v6.0/haiku-x64" \
+    --framework-version "$runtime_version" \
+    --roll-forward LatestMajor \
+    || fail "Patching the game files failed. See log.txt."
+  touch "$stamp"
+fi
+
+# --- run --------------------------------------------------------------------
+export MONOGAME_PATCH="$GAMEDIR/dlls/StardewPatches.dll"
+cd "$GAMEDIR/gamedata" || exit 1
+"$DOTNET" "Stardew Valley.dll" "$@"
+status=$?
+echo "Stardew Valley exited with status $status."
+exit $status

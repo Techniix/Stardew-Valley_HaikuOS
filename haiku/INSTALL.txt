@@ -1,0 +1,28 @@
+Stardew Valley for Haiku (x86_64) - install
+===========================================
+
+This package contains no game files. You need your own copy of
+Stardew Valley 1.6 (Windows build from Steam or GOG).
+
+1. Install dependencies (Terminal):
+
+     pkgman install libsdl2 openal gcc haiku_devel
+
+2. Install a .NET runtime for Haiku (8.0 or newer) from
+   https://github.com/trungnt2910/dotnet-builds
+   The launcher looks in ./dotnet, ~/.dotnet, then $PATH,
+   or set DOTNET_ROOT.
+
+3. Build the native shims (once):
+
+     ./build-native.sh
+
+4. Copy the contents of your Stardew Valley install folder
+   (the one containing "Stardew Valley.dll") into gamedata/.
+
+5. Run:
+
+     ./StardewValley.sh
+
+   The first launch patches the game files in gamedata/ for Haiku.
+   Output goes to log.txt. Set SDV_FORCE_PATCH=1 to re-patch.
