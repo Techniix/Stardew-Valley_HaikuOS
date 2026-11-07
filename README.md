@@ -33,6 +33,9 @@ platform-neutral .NET, so it doesn't need to be ported. What it runs *on* does:
   Steam library inside DepotDownloader) right after login. The script
   patches that one fallback in your local copy so it uses SteamKit's
   built-in placeholder machine ID instead.
+  Downloads on Haiku can also stall silently; the script watches
+  `steam-depot/` and restarts DepotDownloader (which resumes) if it stops
+  growing for 3 minutes. `SDV_MAX_DOWNLOADS=2` reduces parallel connections.
 
 ## How this differs from other ports
 

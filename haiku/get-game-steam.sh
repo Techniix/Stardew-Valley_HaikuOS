@@ -125,11 +125,74 @@ fi
 mkdir -p "$DEPOT_DIR"
 echo
 echo "Downloading Stardew Valley (Windows build, ~700 MB) into steam-depot/ ..."
-"$DOTNET_ROOT/dotnet" "$DD_DIR/DepotDownloader.dll" \
-  -app "$APP_ID" -os windows -osarch 64 \
-  -dir "$DEPOT_DIR" \
-  -max-downloads "${SDV_MAX_DOWNLOADS:-8}" \
-  "${login_args[@]}"
+dd_cmd=("$DOTNET_ROOT/dotnet" "$DD_DIR/DepotDownloader.dll"
+  -app "$APP_ID" -os windows -osarch 64
+  -dir "$DEPOT_DIR"
+  -max-downloads "${SDV_MAX_DOWNLOADS:-8}"
+  "${login_args[@]}")
+[ -n "${SDV_DD_TEST_CMD:-}" ] && dd_cmd=($SDV_DD_TEST_CMD)   # test hook
+
+# Downloads on Haiku can stall: no errors, no progress. DepotDownloader
+# resumes cleanly, so a watchdog restarts it when steam-depot/ stops growing.
+# It only arms once the size has changed during this attempt, so it never
+# fires while you're typing a password or Steam Guard code.
+STALL_SECONDS="${SDV_STALL_SECONDS:-180}"
+POLL_SECONDS="${SDV_POLL_SECONDS:-15}"
+MAX_ATTEMPTS="${SDV_MAX_ATTEMPTS:-6}"
+state_dir="$(mktemp -d)"
+
+depot_size() { du -sk "$DEPOT_DIR" 2>/dev/null | awk '{print $1}'; }
+
+watchdog() {
+  local last size armed=0 still=0
+  last="$(depot_size)"
+  while sleep "$POLL_SECONDS"; do
+    [ -f "$state_dir/pid" ] || continue
+    size="$(depot_size)"
+    if [ "$size" != "$last" ]; then
+      armed=1; still=0; last="$size"
+    elif [ "$armed" = 1 ]; then
+      still=$((still + POLL_SECONDS))
+      if [ "$still" -ge "$STALL_SECONDS" ]; then
+        touch "$state_dir/stalled"
+        local pid; pid="$(cat "$state_dir/pid")"
+        kill "$pid" 2>/dev/null
+        # escalate if it ignores SIGTERM
+        for _ in 1 2 3 4 5 6 7 8 9 10; do kill -0 "$pid" 2>/dev/null || return; sleep 1; done
+        kill -KILL "$pid" 2>/dev/null
+        return
+      fi
+    fi
+  done
+}
+
+attempt=1
+while :; do
+  rm -f "$state_dir/pid" "$state_dir/stalled"
+  watchdog &
+  watchdog_pid=$!
+  set +e
+  # Foreground subshell keeps the terminal for prompts; exec keeps its PID.
+  ( echo "$BASHPID" > "$state_dir/pid"; exec "${dd_cmd[@]}" )
+  status=$?
+  set -e
+  kill "$watchdog_pid" 2>/dev/null; wait "$watchdog_pid" 2>/dev/null || true
+
+  if [ -f "$state_dir/stalled" ] && [ "$attempt" -lt "$MAX_ATTEMPTS" ]; then
+    attempt=$((attempt + 1))
+    echo
+    echo "Download stalled for ${STALL_SECONDS}s; restarting (attempt $attempt of $MAX_ATTEMPTS). It resumes where it left off."
+    continue
+  fi
+  break
+done
+stalled=0; [ -f "$state_dir/stalled" ] && stalled=1
+rm -rf "$state_dir"
+if [ "$status" -ne 0 ]; then
+  echo "DepotDownloader exited with status $status." >&2
+  [ "$stalled" = 1 ] && echo "It kept stalling. Try: SDV_MAX_DOWNLOADS=2 ./get-game-steam.sh" >&2
+  exit "$status"
+fi
 
 [ -f "$DEPOT_DIR/Stardew Valley.dll" ] || {
   echo "Download finished but 'Stardew Valley.dll' is missing. Is the Steam account the owner of the game?" >&2
