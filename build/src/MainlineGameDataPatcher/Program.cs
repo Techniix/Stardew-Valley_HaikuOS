@@ -12,6 +12,12 @@ if (args.Length == 2 && args[0] == "--patch-steamkit")
     return PatchSteamKit(args[1]);
 }
 
+if (args.Length == 2 && args[0] == "--patch-guid")
+{
+    PatchGuidNewGuid(Path.GetFullPath(args[1]));
+    return 0;
+}
+
 if (args.Length == 2 && args[0] == "--patch-lidgren")
 {
     PatchLidgrenNetworkInterfaces(Path.GetFullPath(args[1]));
@@ -54,6 +60,10 @@ PatchGameAssemblyMethods(gameDir);
 if (PortConfig.NoNetworkInterfaces)
 {
     PatchLidgrenNetworkInterfaces(gameDir);
+}
+if (PortConfig.FastGuid)
+{
+    PatchGuidNewGuid(gameDir);
 }
 NormalizeManagedAssemblies(gameDir);
 NormalizeManagedAssemblies(modsDir, SearchOption.AllDirectories);
@@ -99,6 +109,9 @@ static bool TryParseArguments(string[] args, out string gameDir, out string over
                 break;
             case "--no-network-interfaces":
                 PortConfig.NoNetworkInterfaces = true;
+                break;
+            case "--fast-guid":
+                PortConfig.FastGuid = true;
                 break;
             case "--profile" when i + 1 < args.Length:
                 var profile = args[++i];
@@ -1428,6 +1441,112 @@ static void PatchLidgrenNetworkInterfaces(string gameDir)
     Console.WriteLine("Lidgren: Lidgren.Network.NetUtility not found; multiplayer by IP may fail");
 }
 
+// Guid.NewGuid() gets 16 bytes from the OS's cryptographic random source. On
+// Haiku's .NET that call can take tens of milliseconds, and the game creates
+// GUIDs on the main thread (e.g. for every weed cut), so swinging a tool froze
+// the game for up to half a second. The game only needs unique IDs, not
+// cryptographic ones, so calls in the game's own assemblies are redirected to
+// a version-4 GUID built from Random.Shared (seeded once from the OS).
+static void PatchGuidNewGuid(string gameDir)
+{
+    foreach (var fileName in new[] { "Stardew Valley.dll", "StardewValley.GameData.dll" })
+    {
+        var path = Path.Combine(gameDir, fileName);
+        if (!File.Exists(path))
+            continue;
+
+        var resolver = new DefaultAssemblyResolver();
+        resolver.AddSearchDirectory(gameDir);
+        using var assembly = AssemblyDefinition.ReadAssembly(path, new ReaderParameters
+        {
+            InMemory = true,
+            ReadSymbols = false,
+            AssemblyResolver = resolver,
+        });
+        var module = assembly.MainModule;
+
+        var calls = module.Types
+            .SelectMany(AllTypes)
+            .SelectMany(t => t.Methods)
+            .Where(m => m.HasBody)
+            .SelectMany(m => m.Body.Instructions)
+            .Where(i => (i.OpCode == OpCodes.Call) && i.Operand is MethodReference r
+                        && r.Name == "NewGuid" && r.Parameters.Count == 0
+                        && r.DeclaringType.FullName == "System.Guid")
+            .ToList();
+        if (calls.Count == 0)
+        {
+            Console.WriteLine($"Guid: nothing to patch in {fileName}");
+            continue;
+        }
+
+        // Reuse the assembly's own System.Guid reference so the new code binds
+        // to the same reference assembly (System.Runtime) as the game's code.
+        var original = (MethodReference)calls[0].Operand;
+        var guidType = original.ReturnType;
+        var scope = original.DeclaringType.Scope;
+        var byteArray = new ArrayType(module.TypeSystem.Byte);
+        var randomType = new TypeReference("System", "Random", module, scope);
+        var getShared = new MethodReference("get_Shared", randomType, randomType);
+        var nextBytes = new MethodReference("NextBytes", module.TypeSystem.Void, randomType) { HasThis = true };
+        nextBytes.Parameters.Add(new ParameterDefinition(byteArray));
+        var guidCtor = new MethodReference(".ctor", module.TypeSystem.Void, guidType) { HasThis = true };
+        guidCtor.Parameters.Add(new ParameterDefinition(byteArray));
+
+        var helperType = new TypeDefinition("HaikuPort", "FastGuid",
+            TypeAttributes.Public | TypeAttributes.Abstract | TypeAttributes.Sealed | TypeAttributes.BeforeFieldInit,
+            module.TypeSystem.Object);
+        var helper = new MethodDefinition("NewGuid", MethodAttributes.Public | MethodAttributes.Static | MethodAttributes.HideBySig, guidType);
+        helper.Body.InitLocals = true;
+        var bytes = new VariableDefinition(byteArray);
+        helper.Body.Variables.Add(bytes);
+        var il = helper.Body.GetILProcessor();
+        // var b = new byte[16]; Random.Shared.NextBytes(b);
+        il.Append(il.Create(OpCodes.Ldc_I4_S, (sbyte)16));
+        il.Append(il.Create(OpCodes.Newarr, module.TypeSystem.Byte));
+        il.Append(il.Create(OpCodes.Stloc, bytes));
+        il.Append(il.Create(OpCodes.Call, getShared));
+        il.Append(il.Create(OpCodes.Ldloc, bytes));
+        il.Append(il.Create(OpCodes.Callvirt, nextBytes));
+        // b[7] = (b[7] & 0x0F) | 0x40;   version 4 (high nibble of Data3)
+        EmitMaskByte(il, bytes, 7, 0x0F, 0x40);
+        // b[8] = (b[8] & 0x3F) | 0x80;   RFC 4122 variant
+        EmitMaskByte(il, bytes, 8, 0x3F, 0x80);
+        // return new Guid(b);
+        il.Append(il.Create(OpCodes.Ldloc, bytes));
+        il.Append(il.Create(OpCodes.Newobj, guidCtor));
+        il.Append(il.Create(OpCodes.Ret));
+        helperType.Methods.Add(helper);
+        module.Types.Add(helperType);
+
+        foreach (var call in calls)
+            call.Operand = helper;
+
+        var tempPath = path + ".guid.tmp";
+        assembly.Write(tempPath, new WriterParameters { WriteSymbols = false });
+        File.Move(tempPath, path, overwrite: true);
+        Console.WriteLine($"Guid: {calls.Count} Guid.NewGuid() calls in {fileName} now use a fast generator");
+    }
+
+    static IEnumerable<TypeDefinition> AllTypes(TypeDefinition type) =>
+        new[] { type }.Concat(type.NestedTypes.SelectMany(AllTypes));
+
+    static void EmitMaskByte(ILProcessor il, VariableDefinition bytes, int index, int keep, int set)
+    {
+        il.Append(il.Create(OpCodes.Ldloc, bytes));
+        il.Append(il.Create(OpCodes.Ldc_I4, index));
+        il.Append(il.Create(OpCodes.Ldloc, bytes));
+        il.Append(il.Create(OpCodes.Ldc_I4, index));
+        il.Append(il.Create(OpCodes.Ldelem_U1));
+        il.Append(il.Create(OpCodes.Ldc_I4, keep));
+        il.Append(il.Create(OpCodes.And));
+        il.Append(il.Create(OpCodes.Ldc_I4, set));
+        il.Append(il.Create(OpCodes.Or));
+        il.Append(il.Create(OpCodes.Conv_U1));
+        il.Append(il.Create(OpCodes.Stelem_I1));
+    }
+}
+
 static bool TryWriteFallbackBody(MethodDefinition method, ModuleDefinition module)
 {
     var returnType = method.ReturnType;
@@ -1490,4 +1609,5 @@ static class PortConfig
     public static string RollForward = string.Empty;
     public static bool Desktop;
     public static bool NoNetworkInterfaces;
+    public static bool FastGuid;
 }

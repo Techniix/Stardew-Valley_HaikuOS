@@ -103,6 +103,12 @@ platform-neutral .NET, so the game itself doesn't need porting. What it runs
   (Lidgren) calls when it starts a connection, so joining by IP crashed. The
   patcher replaces those lookups (used for LAN broadcast and peer IDs) with
   safe fallbacks (`--no-network-interfaces`).
+- **Tool-swing freezes:** `Guid.NewGuid()` reads the OS's cryptographic
+  random source, and on Haiku's .NET that takes tens of milliseconds per
+  call. The game creates GUIDs on its main thread (for example for every weed
+  you cut), which froze it for up to half a second. The patcher points the
+  game's own calls at a fast version-4 GUID generator seeded once from the OS
+  (`--fast-guid`); the IDs only need to be unique, not secret.
 - **Exception log:** `logs/exceptions.txt` records every .NET exception as
   it's thrown (via `StardewPatches.dll`, loaded before the game), so errors
   the game wraps (e.g. "Could not load … asset!") keep their real cause.

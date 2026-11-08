@@ -98,6 +98,7 @@ patcher_args=(
   --framework-version "$runtime_version"
   --roll-forward LatestMajor
   --no-network-interfaces   # Haiku's .NET lacks NetworkInformation (multiplayer)
+  --fast-guid               # Haiku's Guid.NewGuid() is slow; it froze tool swings
 )
 entry_assembly="Stardew Valley.dll"
 patch_assembly="$GAMEDIR/dlls/StardewPatches.dll"

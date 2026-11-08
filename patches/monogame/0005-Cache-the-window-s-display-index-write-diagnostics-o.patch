@@ -1,0 +1,264 @@
+From 41221bb685340d25e7c718502e9684baa01024a5 Mon Sep 17 00:00:00 2001
+From: Dalton Singleton <blumoon94@gmail.com>
+Date: Sat, 7 Nov 2026 21:12:03 -0500
+Subject: [PATCH] Cache the window's display index; write diagnostics on a
+ background thread
+
+Stardew asks for the window's display index every frame. On Haiku each
+SDL call is an app_server round trip (about 1 ms, ~5% of frame time), so
+cache it for half a second.
+
+The frame and content-load profilers opened, wrote and closed their CSV
+files for every sample, which cost tens of milliseconds per frame on
+Haiku and distorted the frame times they measured. Queue the lines and
+write them from a background thread with the files kept open.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01AVRp8nockFeWgKbb4pQJh9
+---
+ .../Content/ContentLoadDiagnostics.cs         | 15 +--
+ MonoGame.Framework/DiagnosticsFile.cs         | 96 +++++++++++++++++++
+ MonoGame.Framework/GameLoopDiagnostics.cs     | 32 +------
+ MonoGame.Framework/GameWindow.cs              | 16 +++-
+ 4 files changed, 115 insertions(+), 44 deletions(-)
+ create mode 100644 MonoGame.Framework/DiagnosticsFile.cs
+
+diff --git a/MonoGame.Framework/Content/ContentLoadDiagnostics.cs b/MonoGame.Framework/Content/ContentLoadDiagnostics.cs
+index b35308122..6b7ecead7 100644
+--- a/MonoGame.Framework/Content/ContentLoadDiagnostics.cs
++++ b/MonoGame.Framework/Content/ContentLoadDiagnostics.cs
+@@ -150,22 +150,10 @@ namespace Microsoft.Xna.Framework.Content
+ 
+             try
+             {
+-                var directory = Path.GetDirectoryName(ProfileLogPath);
+-                if (!string.IsNullOrEmpty(directory))
+-                    Directory.CreateDirectory(directory);
+ 
+                 lock (LogLock)
+                 {
+-                    var exists = File.Exists(ProfileLogPath);
+-                    var needsHeader = !exists || new FileInfo(ProfileLogPath).Length == 0;
+-                    using (var writer = new StreamWriter(ProfileLogPath, true))
+-                    {
+-                        if (needsHeader)
+-                        {
+-                            writer.WriteLine("utc,stopwatch_ticks,elapsed_ms,asset_name,target_type,root_directory,asset_path,stream_source,memory_cache_hit,content_cache_hit,compressed_lzx,compressed_lz4,xnb_flags,xnb_length,decompressed_size,compressed_size,success,error");
+-                        }
+-
+-                        writer.WriteLine(string.Join(",", new[]
++                    DiagnosticsFile.AppendLine(ProfileLogPath, "utc,stopwatch_ticks,elapsed_ms,asset_name,target_type,root_directory,asset_path,stream_source,memory_cache_hit,content_cache_hit,compressed_lzx,compressed_lz4,xnb_flags,xnb_length,decompressed_size,compressed_size,success,error", string.Join(",", new[]
+                         {
+                             Escape(DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture)),
+                             Escape(sample.EndTicks.ToString(CultureInfo.InvariantCulture)),
+@@ -186,7 +174,6 @@ namespace Microsoft.Xna.Framework.Content
+                             Escape(sample.Success ? "1" : "0"),
+                             Escape(sample.Error)
+                         }));
+-                    }
+                 }
+             }
+             catch (Exception ex)
+diff --git a/MonoGame.Framework/DiagnosticsFile.cs b/MonoGame.Framework/DiagnosticsFile.cs
+new file mode 100644
+index 000000000..efe7aadc8
+--- /dev/null
++++ b/MonoGame.Framework/DiagnosticsFile.cs
+@@ -0,0 +1,96 @@
++// MonoGame - Copyright (C) The MonoGame Team
++// This file is subject to the terms and conditions defined in
++// file 'LICENSE.txt', which is part of this source code package.
++
++using System;
++using System.Collections.Concurrent;
++using System.Collections.Generic;
++using System.IO;
++using System.Threading;
++
++namespace Microsoft.Xna.Framework
++{
++    /// <summary>
++    /// Appends lines to the diagnostics CSV files on a background thread.
++    /// </summary>
++    /// <remarks>
++    /// Opening, writing and closing a file for every sample took tens of
++    /// milliseconds per frame on some systems (Haiku), so the profilers
++    /// distorted the frame times they measured. Callers only queue a string;
++    /// the files stay open and are flushed whenever the queue runs empty.
++    /// </remarks>
++    internal static class DiagnosticsFile
++    {
++        private struct Entry
++        {
++            public string Path;
++            public string Header;
++            public string Line;
++        }
++
++        private static readonly BlockingCollection<Entry> Queue = new BlockingCollection<Entry>();
++        private static readonly object StartLock = new object();
++        private static Thread _writerThread;
++
++        internal static void AppendLine(string path, string header, string line)
++        {
++            if (_writerThread == null)
++            {
++                lock (StartLock)
++                {
++                    if (_writerThread == null)
++                    {
++                        var thread = new Thread(WriteLoop) { IsBackground = true, Name = "Diagnostics writer" };
++                        thread.Start();
++                        _writerThread = thread;
++                    }
++                }
++            }
++
++            Queue.Add(new Entry { Path = path, Header = header, Line = line });
++        }
++
++        private static void WriteLoop()
++        {
++            var writers = new Dictionary<string, StreamWriter>();
++            var failed = new HashSet<string>();
++            foreach (var entry in Queue.GetConsumingEnumerable())
++            {
++                if (failed.Contains(entry.Path))
++                    continue;
++
++                try
++                {
++                    StreamWriter writer;
++                    if (!writers.TryGetValue(entry.Path, out writer))
++                    {
++                        var directory = Path.GetDirectoryName(entry.Path);
++                        if (!string.IsNullOrEmpty(directory))
++                            Directory.CreateDirectory(directory);
++
++                        var needsHeader = !File.Exists(entry.Path) || new FileInfo(entry.Path).Length == 0;
++                        var stream = new FileStream(entry.Path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite, 65536);
++                        writer = new StreamWriter(stream);
++                        writers[entry.Path] = writer;
++                        if (needsHeader && entry.Header != null)
++                            writer.WriteLine(entry.Header);
++                    }
++
++                    writer.WriteLine(entry.Line);
++
++                    // The game is usually ended with SIGKILL, so don't sit on data.
++                    if (Queue.Count == 0)
++                    {
++                        foreach (var w in writers.Values)
++                            w.Flush();
++                    }
++                }
++                catch (Exception ex)
++                {
++                    failed.Add(entry.Path);
++                    Console.Out.WriteLine("Diagnostics log disabled for {0}: {1}", entry.Path, ex.Message);
++                }
++            }
++        }
++    }
++}
+diff --git a/MonoGame.Framework/GameLoopDiagnostics.cs b/MonoGame.Framework/GameLoopDiagnostics.cs
+index 519262902..425a60518 100644
+--- a/MonoGame.Framework/GameLoopDiagnostics.cs
++++ b/MonoGame.Framework/GameLoopDiagnostics.cs
+@@ -168,21 +168,9 @@ namespace Microsoft.Xna.Framework
+         {
+             try
+             {
+-                var directory = Path.GetDirectoryName(ProfileLogPath);
+-                if (!string.IsNullOrEmpty(directory))
+-                    Directory.CreateDirectory(directory);
+ 
+-                var exists = File.Exists(ProfileLogPath);
+-                var needsHeader = !exists || new FileInfo(ProfileLogPath).Length == 0;
+-                using (var writer = new StreamWriter(ProfileLogPath, true))
+-                {
+-                    if (needsHeader)
+-                    {
+-                        writer.WriteLine("utc,stopwatch_start_ticks,stopwatch_end_ticks,window_ms,frames,draws,updates,fps,avg_tick_ms,max_tick_ms,avg_update_ms,max_update_ms,avg_draw_ms,max_draw_ms,avg_draw_body_ms,max_draw_body_ms,avg_end_draw_ms,max_end_draw_ms,slow_ticks,very_slow_ticks,suppressed_draws");
+-                    }
+-
+-                    var fps = _draws * 1000.0 / windowMilliseconds;
+-                    writer.WriteLine(string.Join(",", new[]
++                var fps = _draws * 1000.0 / windowMilliseconds;
++                    DiagnosticsFile.AppendLine(ProfileLogPath, "utc,stopwatch_start_ticks,stopwatch_end_ticks,window_ms,frames,draws,updates,fps,avg_tick_ms,max_tick_ms,avg_update_ms,max_update_ms,avg_draw_ms,max_draw_ms,avg_draw_body_ms,max_draw_body_ms,avg_end_draw_ms,max_end_draw_ms,slow_ticks,very_slow_ticks,suppressed_draws", string.Join(",", new[]
+                     {
+                         Escape(DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture)),
+                         Escape(_windowStartTicks.ToString(CultureInfo.InvariantCulture)),
+@@ -206,7 +194,6 @@ namespace Microsoft.Xna.Framework
+                         Escape(_verySlowTicks.ToString(CultureInfo.InvariantCulture)),
+                         Escape(_suppressedDraws.ToString(CultureInfo.InvariantCulture))
+                     }));
+-                }
+             }
+             catch (Exception ex)
+             {
+@@ -253,22 +240,10 @@ namespace Microsoft.Xna.Framework
+ 
+             try
+             {
+-                var directory = Path.GetDirectoryName(SlowFrameLogPath);
+-                if (!string.IsNullOrEmpty(directory))
+-                    Directory.CreateDirectory(directory);
+ 
+                 lock (LogLock)
+                 {
+-                    var exists = File.Exists(SlowFrameLogPath);
+-                    var needsHeader = !exists || new FileInfo(SlowFrameLogPath).Length == 0;
+-                    using (var writer = new StreamWriter(SlowFrameLogPath, true))
+-                    {
+-                        if (needsHeader)
+-                        {
+-                            writer.WriteLine("utc,stopwatch_start_ticks,stopwatch_end_ticks,tick_ms,update_ms,draw_ms,draw_body_ms,end_draw_ms,updates,drew,suppressed_draw,is_running_slowly,gc0_count,gc1_count,gc2_count,managed_heap_bytes");
+-                        }
+-
+-                        writer.WriteLine(string.Join(",", new[]
++                    DiagnosticsFile.AppendLine(SlowFrameLogPath, "utc,stopwatch_start_ticks,stopwatch_end_ticks,tick_ms,update_ms,draw_ms,draw_body_ms,end_draw_ms,updates,drew,suppressed_draw,is_running_slowly,gc0_count,gc1_count,gc2_count,managed_heap_bytes", string.Join(",", new[]
+                         {
+                             Escape(DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture)),
+                             Escape(sample.StartTicks.ToString(CultureInfo.InvariantCulture)),
+@@ -287,7 +262,6 @@ namespace Microsoft.Xna.Framework
+                             Escape(GC.CollectionCount(2).ToString(CultureInfo.InvariantCulture)),
+                             Escape(GC.GetTotalMemory(false).ToString(CultureInfo.InvariantCulture))
+                         }));
+-                    }
+                 }
+             }
+             catch (Exception ex)
+diff --git a/MonoGame.Framework/GameWindow.cs b/MonoGame.Framework/GameWindow.cs
+index 17f5d90ff..95f5dd1c4 100644
+--- a/MonoGame.Framework/GameWindow.cs
++++ b/MonoGame.Framework/GameWindow.cs
+@@ -92,10 +92,24 @@ namespace Microsoft.Xna.Framework
+ #endif
+         }
+ 
++#if (WINDOWS && !WINDOWS_UAP) || DESKTOPGL
++        private int _cachedDisplayIndex = -1;
++        private long _cachedDisplayIndexTicks;
++#endif
++
+         public int GetDisplayIndex()
+         {
+ #if (WINDOWS && !WINDOWS_UAP) || DESKTOPGL
+-            return Sdl.Window.GetDisplayIndex(Handle);
++            // The game asks every frame. On Haiku each SDL call is a round
++            // trip to the app_server (about 1 ms), so cache it for 0.5 s:
++            // the window rarely changes display, and only then is it stale.
++            var now = System.Diagnostics.Stopwatch.GetTimestamp();
++            if (_cachedDisplayIndex < 0 || now - _cachedDisplayIndexTicks > System.Diagnostics.Stopwatch.Frequency / 2)
++            {
++                _cachedDisplayIndex = Sdl.Window.GetDisplayIndex(Handle);
++                _cachedDisplayIndexTicks = now;
++            }
++            return _cachedDisplayIndex;
+ #else
+             return 0;
+ #endif
+-- 
+2.43.0
+
