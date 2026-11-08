@@ -79,6 +79,8 @@ dotnet publish "$ROOT/build/src/TraceReport/TraceReport.csproj" \
   -c Release -nologo -v quiet -o "$WORK/tracereport"
 # TraceEvent ships Windows-only ETW helpers; they're of no use on Haiku.
 rm -rf "$WORK"/tracereport/{amd64,arm64,x86,runtimes} "$WORK"/tracereport/*.pdb "$WORK/tracereport/TraceReport"
+# Linux apphost; Haiku runs the patcher as "dotnet MainlineGameDataPatcher.dll".
+rm -f "$WORK/patcher/MainlineGameDataPatcher"
 
 echo "== Fetching SMAPI $SMAPI_VERSION"
 smapi_zip="$WORK/smapi.zip"
@@ -115,6 +117,8 @@ done
 mkdir -p "$OUT/tools/SMAPIBundle/game-root" "$OUT/tools/SMAPIBundle/default-mods"
 cp -R "$WORK/smapi-payload/." "$OUT/tools/SMAPIBundle/game-root/"
 rm -rf "$OUT/tools/SMAPIBundle/game-root/Mods"
+# Linux launchers; the Haiku launcher starts "dotnet StardewModdingAPI.dll".
+rm -f "$OUT/tools/SMAPIBundle/game-root/StardewModdingAPI" "$OUT/tools/SMAPIBundle/game-root/unix-launcher.sh"
 for mod in ConsoleCommands SaveBackup; do
   cp -R "$WORK/smapi-payload/Mods/$mod" "$OUT/tools/SMAPIBundle/default-mods/$mod"
   for f in "${SMAPI_TOOLKIT_FILES[@]}"; do

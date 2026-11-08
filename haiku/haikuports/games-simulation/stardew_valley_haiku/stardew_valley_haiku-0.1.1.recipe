@@ -42,13 +42,11 @@ REQUIRES="
 	cmd:curl
 	cmd:jq
 	cmd:unzip
-	lib:libgmp
 	lib:libgssapi_krb5
-	lib:libiconv
-	lib:libmpfr
-	lib:libopenal
 	lib:libSDL2_2.0
+	lib:libssp
 	lib:libunwind
+	openal
 	"
 
 BUILD_REQUIRES="
@@ -74,12 +72,14 @@ INSTALL()
 	mkdir -p $appDir
 	cp -a . $appDir/
 
-	# HaikuPorter's zip extraction drops the executable bits.
-	chmod 755 $appDir/*.sh \
-		$appDir/tools/udp-relay.py \
-		$appDir/tools/MainlineGameDataPatcher/MainlineGameDataPatcher \
+	# Linux launchers from the .NET and SMAPI builds; on Haiku both tools run
+	# through "dotnet <name>.dll".
+	rm -f $appDir/tools/MainlineGameDataPatcher/MainlineGameDataPatcher \
 		$appDir/tools/SMAPIBundle/game-root/StardewModdingAPI \
 		$appDir/tools/SMAPIBundle/game-root/unix-launcher.sh
+
+	# HaikuPorter's zip extraction drops the executable bits.
+	chmod 755 $appDir/*.sh $appDir/tools/udp-relay.py
 
 	# Tells the scripts they run from a read-only package: writable data
 	# goes to ~/config/data/StardewValley and setup skips pkgman and builds.
