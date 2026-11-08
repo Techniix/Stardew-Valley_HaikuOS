@@ -167,6 +167,18 @@ fi
 
 # --- run --------------------------------------------------------------------
 export MONOGAME_PATCH="$patch_assembly"
+# Frame-time profiling built into the MonoGame fork. SDV_PROFILE=1 writes
+# per-second stats and every frame slower than SDV_SLOW_FRAME_MS (default
+# 25 ms here, i.e. a missed 60 Hz frame and then some) with GC counts.
+if [ "${SDV_PROFILE:-0}" = 1 ]; then
+  mkdir -p "$GAMEDIR/logs"
+  export SDV_PERF_LOG="$GAMEDIR/logs/perf-latest.csv"
+  export SDV_SLOW_FRAME_LOG="$GAMEDIR/logs/slow-frame-latest.csv"
+  export SDV_SLOW_FRAME_MS="${SDV_SLOW_FRAME_MS:-25}"
+  rm -f "$SDV_PERF_LOG" "$SDV_SLOW_FRAME_LOG"
+  echo "Frame profiling on: logs/perf-latest.csv, logs/slow-frame-latest.csv"
+fi
+
 # First-chance exception log (written by StardewPatches.dll). Keeps the real
 # cause when the game wraps an error. SDV_EXCEPTION_LOG=0 turns it off.
 if [ "${SDV_EXCEPTION_LOG:-}" = 0 ]; then
@@ -224,8 +236,9 @@ Details are in log.txt and logs/exceptions.txt in the game folder. Please includ
 
   # 137 = SIGKILL: killed on purpose (Deskbar/Team Monitor/kill), not a
   # crash. Don't offer crash workarounds.
+  # Quitting from the game's own menu also ends with 137.
   if [ "$status" -eq 137 ]; then
-    echo "Stardew Valley was killed (SIGKILL)."
+    echo "Stardew Valley exited (SIGKILL: quit from the game menu, or killed)."
     break
   fi
 

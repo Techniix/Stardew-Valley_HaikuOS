@@ -98,9 +98,6 @@ platform-neutral .NET, so the game itself doesn't need porting. What it runs
   executable's folder (`dotnet/`) when started from Deskbar/Tracker (no
   `TERM` set). The game loads some content via relative paths, so that broke
   Deskbar launches. The launcher sets `TERM` so SDL leaves it alone.
-- **Clean exit:** MonoGame closes the audio device before the process exits
-  on Haiku (patch `0005`). Without that, Haiku's media kit was torn down
-  under OpenAL's playback thread and quitting the game ended in a segfault.
 - **Multiplayer networking:** Haiku's .NET doesn't implement
   `System.Net.NetworkInformation`, which the game's networking library
   (Lidgren) calls when it starts a connection, so joining by IP crashed. The
@@ -376,6 +373,7 @@ trying large mods.
 | Crash in `BTimeSource::GetTime` (debug report) | First check `log.txt` for an `Unhandled exception`; if there is one, that's the real problem and the media crash is a side effect. Otherwise it's the Haiku media kit race. Click **Terminate** in the debugger, then **Restart media & retry** in the launcher's prompt. If it keeps happening: `SDV_RESTART_MEDIA=1 ./StardewValley.sh` restarts them before every launch; `SDV_NO_AUDIO=1` plays without sound. |
 | Game doesn't start | Check `log.txt`. Re-patch with `SDV_FORCE_PATCH=1 ./StardewValley.sh`. Confirm `gamedata/` has `Stardew Valley.dll`. |
 | Controller does nothing in game | Run `./gamepad.sh`. If it says "NOT mapped", map it. If it lists no controller, check **Preferences → Joysticks**. Connect it before starting the game. |
+| Stutter | Run `SDV_PROFILE=1 ./StardewValley.sh`, play a few minutes where it stutters, and attach `logs/slow-frame-latest.csv` and `logs/perf-latest.csv` to an issue. They show whether slow frames come from garbage collection, game logic or presenting the frame. |
 | Mods misbehave | `SDV_VANILLA=1 ./StardewValley.sh` to rule out the base game, then see [Mods](#mods-smapi). |
 
 Saves live in `~/.config/StardewValley/Saves`.

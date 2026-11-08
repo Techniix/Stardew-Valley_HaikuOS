@@ -53,9 +53,9 @@ after it starts), the control thread can be inside `RealTimeFor()` on an
 object whose area was just deleted. The faulting state above is exactly that.
 
 - The same node thread also crashed in `BPrivate::SharedBufferList::Lock()`
-  (from `SoundPlayNode::FillNextBuffer`) during exit, and after a normal
-  quit from the app's menu, so the problem is broader than the time source:
-  libmedia's state is torn down at exit while node threads still run.
+  (from `SoundPlayNode::FillNextBuffer`) during exit after an unhandled
+  exception, so the problem is broader than the time source: libmedia's
+  state is torn down at exit while node threads still run.
 
 ## Suggested fix
 

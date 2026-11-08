@@ -14,10 +14,7 @@ Apply these to the `portmaster-stardew-mainline` branch of
 4. `0004` Add controllers present at startup on Haiku. SDL2's Haiku joystick
    backend never sends `SDL_JOYDEVICEADDED` (no hotplug), which is MonoGame's
    only path to registering a gamepad.
-5. `0005` Close the OpenAL device on process exit on Haiku. Otherwise Haiku's
-   media kit is torn down while OpenAL's playback thread still runs, and the
-   process segfaults on exit (seen in `BTimeSource::GetTime` and
-   `SharedBufferList::Lock`), which also made normal quits look like crashes.
+
 
 These patches modify MonoGame source files and are licensed under the
 **Microsoft Public License (Ms-PL)**, like MonoGame itself.
