@@ -11,6 +11,7 @@ containing your Steam password.
 | Path | What it is |
 |---|---|
 | `haiku/` | Haiku launcher, setup, Steam downloader and build scripts |
+| `haiku/haikuports/` | HaikuPorter recipe for a `.hpkg` (see `docs/HaikuPorts.md`) |
 | `patches/monogame/` | Haiku patches for the MonoGame fork (Ms-PL) |
 | `build/src/MainlineGameDataPatcher/` | Patcher shared with the PortMaster build (Mono.Cecil) |
 | `build/src/native/` | Native shims and Haiku tools (C/C++) |

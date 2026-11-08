@@ -462,7 +462,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 - [ ] Get the media kit time-source race fixed in Haiku
 - [ ] Confirm SMAPI/Harmony on Haiku
 - [ ] Confirm direct-IP multiplayer (host and join)
-- [ ] `.hpkg` package and HaikuDepot submission
+- [ ] `.hpkg` package and HaikuDepot submission (recipe in `haiku/haikuports/`, see [docs/HaikuPorts.md](docs/HaikuPorts.md); needs testing on Haiku)
 - [ ] GOG downloader alongside Steam
 - [ ] Upstream fixes: SteamKit2 (`PlatformNotSupportedException` fallback),
       MonoGame Haiku support, .NET on Haiku (`NetworkInterface`, slow
