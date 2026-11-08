@@ -424,6 +424,7 @@ SDV_TRACE=1 ./StardewValley.sh     # also a CPU trace -> logs/trace-report.txt
 | Game doesn't start | Check `log.txt`. Re-patch with `SDV_FORCE_PATCH=1 ./StardewValley.sh`. Confirm `gamedata/` has `Stardew Valley.dll`. |
 | Controller does nothing in game | Run `./gamepad.sh`. If it says "NOT mapped", map it. If it lists no controller, check **Preferences → Joysticks**. Connect it before starting the game. |
 | Stutter or freezes | Play a few minutes with `SDV_TRACE=1 ./StardewValley.sh` where it happens, and attach `logs/trace-report.txt` and `logs/slow-frame-latest.csv` to an issue. See [Performance and profiling](#performance-and-profiling). |
+| Nothing appears after launching, or the window looks wrong at startup | The window stays hidden for a few seconds while the game applies its saved size and mode (a notification says so). If it never appears, start with `MONOGAME_SHOW_WINDOW_EARLY=1 ./StardewValley.sh` and report it. |
 | Brief black screens in fullscreen | Try **Windowed Borderless** in the game's display options. It looks the same as fullscreen and may avoid them. |
 | Mods misbehave | `SDV_VANILLA=1 ./StardewValley.sh` to rule out the base game, then see [Mods](#mods-smapi). |
 
