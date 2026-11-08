@@ -65,7 +65,7 @@ BUILD()
 {
 	# Native shims (Windows API stand-ins, Steam stubs, gamepad tool,
 	# media-services helper), from the sources in native-src/.
-	./build-native.sh libs
+	bash ./build-native.sh libs
 }
 
 INSTALL()
@@ -73,6 +73,13 @@ INSTALL()
 	local appDir=$appsDir/StardewValley
 	mkdir -p $appDir
 	cp -a . $appDir/
+
+	# HaikuPorter's zip extraction drops the executable bits.
+	chmod 755 $appDir/*.sh \
+		$appDir/tools/udp-relay.py \
+		$appDir/tools/MainlineGameDataPatcher/MainlineGameDataPatcher \
+		$appDir/tools/SMAPIBundle/game-root/StardewModdingAPI \
+		$appDir/tools/SMAPIBundle/game-root/unix-launcher.sh
 
 	# Tells the scripts they run from a read-only package: writable data
 	# goes to ~/config/data/StardewValley and setup skips pkgman and builds.
