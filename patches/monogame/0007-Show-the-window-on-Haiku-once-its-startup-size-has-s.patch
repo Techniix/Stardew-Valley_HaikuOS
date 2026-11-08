@@ -1,4 +1,4 @@
-From c10016cfb40ebfa74e632b0fed8a6e3492008a76 Mon Sep 17 00:00:00 2001
+From 0a946e280ecd4bbfcc9f8a84b9b61bba3da03c86 Mon Sep 17 00:00:00 2001
 From: Dalton Singleton <blumoon94@gmail.com>
 Date: Sat, 7 Nov 2026 22:12:38 -0500
 Subject: [PATCH] Show the window on Haiku once its startup size has settled
@@ -8,15 +8,38 @@ updates, which on Haiku showed as a white window jumping between
 fullscreen and two windowed sizes. Keep the window hidden (and skip
 drawing) until its size has been stable for half a second, at most five
 seconds; SDL applies the final fullscreen mode once on show.
+
+SDL2's Haiku backend shows every new window even with
+SDL_WINDOW_HIDDEN, while SDL still records it as hidden, so a plain
+SDL_HideWindow is a no-op. Right after creating a window, show and hide
+it through SDL so both agree it is hidden. Adds an SDL_HideWindow
+binding.
+
 MONOGAME_SHOW_WINDOW_EARLY=1 restores the old behaviour.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01AVRp8nockFeWgKbb4pQJh9
 ---
+ MonoGame.Framework/Platform/SDL/SDL2.cs       |  4 +++
  .../Platform/SDL/SDLGamePlatform.cs           | 36 ++++++++++++++++++-
- .../Platform/SDL/SDLGameWindow.cs             |  6 ++++
- 2 files changed, 41 insertions(+), 1 deletion(-)
+ .../Platform/SDL/SDLGameWindow.cs             | 21 +++++++++++
+ 3 files changed, 60 insertions(+), 1 deletion(-)
 
+diff --git a/MonoGame.Framework/Platform/SDL/SDL2.cs b/MonoGame.Framework/Platform/SDL/SDL2.cs
+index c41399444..0fae7c4ea 100644
+--- a/MonoGame.Framework/Platform/SDL/SDL2.cs
++++ b/MonoGame.Framework/Platform/SDL/SDL2.cs
+@@ -423,6 +423,10 @@ internal static class Sdl
+         public delegate void d_sdl_showwindow(IntPtr window);
+         public static d_sdl_showwindow Show = FuncLoader.LoadFunction<d_sdl_showwindow>(NativeLibrary, "SDL_ShowWindow");
+ 
++        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
++        public delegate void d_sdl_hidewindow(IntPtr window);
++        public static d_sdl_hidewindow Hide = FuncLoader.LoadFunction<d_sdl_hidewindow>(NativeLibrary, "SDL_HideWindow");
++
+         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+         public delegate bool d_sdl_getwindowwminfo(IntPtr window, ref SDL_SysWMinfo sysWMinfo);
+         public static d_sdl_getwindowwminfo GetWindowWMInfo = FuncLoader.LoadFunction<d_sdl_getwindowwminfo>(NativeLibrary, "SDL_GetWindowWMInfo");
 diff --git a/MonoGame.Framework/Platform/SDL/SDLGamePlatform.cs b/MonoGame.Framework/Platform/SDL/SDLGamePlatform.cs
 index 1953c5baf..cf20ff44e 100644
 --- a/MonoGame.Framework/Platform/SDL/SDLGamePlatform.cs
@@ -69,10 +92,39 @@ index 1953c5baf..cf20ff44e 100644
                  Threading.Run();
                  GraphicsDevice.DisposeContexts();
 diff --git a/MonoGame.Framework/Platform/SDL/SDLGameWindow.cs b/MonoGame.Framework/Platform/SDL/SDLGameWindow.cs
-index 3bc26fe9c..d59d2818e 100644
+index 3bc26fe9c..804f60290 100644
 --- a/MonoGame.Framework/Platform/SDL/SDLGameWindow.cs
 +++ b/MonoGame.Framework/Platform/SDL/SDLGameWindow.cs
-@@ -233,8 +233,13 @@ namespace Microsoft.Xna.Framework
+@@ -158,6 +158,20 @@ namespace Microsoft.Xna.Framework
+             _handle = Sdl.Window.Create("", 0, 0,
+                 GraphicsDeviceManager.DefaultBackBufferWidth, GraphicsDeviceManager.DefaultBackBufferHeight,
+                 Sdl.Window.State.Hidden | Sdl.Window.State.FullscreenDesktop);
++            EnforceHidden();
++        }
++
++        // SDL2's Haiku backend shows every new window, ignoring
++        // SDL_WINDOW_HIDDEN, while SDL itself still records it as hidden (so
++        // a plain SDL_HideWindow does nothing). Showing and hiding it through
++        // SDL makes both agree that it's hidden; the window then only appears
++        // when SdlGamePlatform shows it, in its final size and mode.
++        private void EnforceHidden()
++        {
++            if (CurrentPlatform.OS != OS.Haiku || _handle == IntPtr.Zero)
++                return;
++            Sdl.Window.Show(_handle);
++            Sdl.Window.Hide(_handle);
+         }
+ 
+         internal void CreateWindow()
+@@ -183,6 +197,7 @@ namespace Microsoft.Xna.Framework
+ 
+             _handle = Sdl.Window.Create(AssemblyHelper.GetDefaultWindowTitle(),
+                 winx, winy, _width, _height, initflags);
++            EnforceHidden();
+ 
+             Id = Sdl.Window.GetWindowId(_handle);
+ 
+@@ -233,8 +248,13 @@ namespace Microsoft.Xna.Framework
              _willBeFullScreen = willBeFullScreen;
          }
  
@@ -86,7 +138,7 @@ index 3bc26fe9c..d59d2818e 100644
              _screenDeviceName = screenDeviceName;
  
              InvalidatePosition();
-@@ -317,6 +322,7 @@ namespace Microsoft.Xna.Framework
+@@ -317,6 +337,7 @@ namespace Microsoft.Xna.Framework
          public void ClientResize(int width, int height)
          {
              InvalidatePosition();

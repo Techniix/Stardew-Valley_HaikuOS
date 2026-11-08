@@ -24,7 +24,9 @@ Apply these to the `portmaster-stardew-mainline` branch of
    invalidate the cache.
 7. `0007` On Haiku, keep the window hidden until the game has finished applying
    its saved window size and mode, so startup doesn't flash a white window
-   through several sizes. `MONOGAME_SHOW_WINDOW_EARLY=1` turns this off.
+   through several sizes. SDL2's Haiku backend shows new windows even when
+   they're created hidden, so the patch hides each one again right after
+   creating it. `MONOGAME_SHOW_WINDOW_EARLY=1` turns this off.
 
 
 These patches modify MonoGame source files and are licensed under the
