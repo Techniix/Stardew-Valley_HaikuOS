@@ -50,6 +50,11 @@ ports/stardewvalleymainline/
 └── stardewvalleymainline/
 ```
 
+`cover.png` and `screenshot.png` show the game's own artwork, so this
+repository doesn't include them. Add them to `portmaster_stardewvalley_mainline/stardewvalleymainline/`
+(they're ignored by git) before running `scripts/export-portmaster-tree.sh`
+for a PortMaster submission.
+
 The final install zip places `StardewValleyMainline.sh` beside the
 `stardewvalleymainline/` directory. Retail Stardew Valley files are excluded; users
 copy their Steam mainline files into `stardewvalleymainline/gamedata`.

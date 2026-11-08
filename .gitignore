@@ -14,3 +14,7 @@ stardewvalley_steam/
 ._*
 haiku/out/
 
+
+# Game artwork for PortMaster submissions; not kept in this repository.
+portmaster_stardewvalley_mainline/stardewvalleymainline/cover.png
+portmaster_stardewvalley_mainline/stardewvalleymainline/screenshot.png

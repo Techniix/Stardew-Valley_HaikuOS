@@ -23,8 +23,15 @@ mkdir -p "$DEST_PORT_DIR/$PORT_NAME"
 cp "$PACKAGE_ROOT/StardewValleyMainline.sh" "$DEST_PORT_DIR/StardewValleyMainline.sh"
 cp "$SOURCE_PORT_DIR/port.json" "$DEST_PORT_DIR/port.json"
 cp "$SOURCE_PORT_DIR/stardewvalley.md" "$DEST_PORT_DIR/README.md"
-cp "$SOURCE_PORT_DIR/cover.png" "$DEST_PORT_DIR/cover.png"
-cp "$SOURCE_PORT_DIR/screenshot.png" "$DEST_PORT_DIR/screenshot.png"
+# Cover art and screenshot are the game's artwork and aren't kept in this
+# repository; put your own cover.png/screenshot.png next to port.json first.
+for art in cover.png screenshot.png; do
+  if [ -f "$SOURCE_PORT_DIR/$art" ]; then
+    cp "$SOURCE_PORT_DIR/$art" "$DEST_PORT_DIR/$art"
+  else
+    echo "note: $art not found; add it to the exported tree before submitting to PortMaster" >&2
+  fi
+done
 cp "$SOURCE_PORT_DIR/gameinfo.xml" "$DEST_PORT_DIR/gameinfo.xml"
 
 mkdir -p "$DEST_PORT_DIR/$PORT_NAME"
