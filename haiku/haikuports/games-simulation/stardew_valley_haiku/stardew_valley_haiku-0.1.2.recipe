@@ -7,8 +7,8 @@ downloader.
 
 You need to own Stardew Valley (Steam, or the Windows build from GOG): this package contains no \
 game files. On first start, setup opens in Terminal and offers to download the game with your \
-own Steam account, or tells you where to copy an existing install. Game files, mods, logs \
-and settings are kept in ~/config/settings/StardewValley.
+own Steam account, or tells you where to copy an existing install. Game files, saves, mods, \
+logs and settings are all kept in ~/config/settings/StardewValley.
 
 This project is unofficial and not affiliated with ConcernedApe."
 HOMEPAGE="https://github.com/Techniix/Stardew-Valley_HaikuOS"

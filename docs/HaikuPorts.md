@@ -18,7 +18,8 @@ game becomes installable from HaikuDepot.
 - **Install:** `/boot/system/apps/StardewValley`, with only the .NET runtime
   (about 40 MB, not the SDK) in `dotnet/` and a Deskbar entry. A `.packaged`
   marker makes the scripts keep game files, mods, logs and settings in
-  `~/config/settings/StardewValley` and skip the pkgman and build steps of setup.
+  `~/config/settings/StardewValley` and skip the pkgman and build steps of setup. That is also where the game itself keeps its saves and
+  options, so everything stays together and survives uninstalling the package.
 - **No game files.** On first start without them, setup opens in Terminal and
   offers the Steam download, as in the zip release.
 
