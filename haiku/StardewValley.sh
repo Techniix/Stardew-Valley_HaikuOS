@@ -168,15 +168,40 @@ fi
 # --- run --------------------------------------------------------------------
 export MONOGAME_PATCH="$patch_assembly"
 # Frame-time profiling built into the MonoGame fork. SDV_PROFILE=1 writes
-# per-second stats and every frame slower than SDV_SLOW_FRAME_MS (default
-# 25 ms here, i.e. a missed 60 Hz frame and then some) with GC counts.
+# per-second stats, every frame slower than SDV_SLOW_FRAME_MS (default
+# 25 ms here, i.e. a missed 60 Hz frame and then some) with GC counts, and
+# how long each content (asset) load took.
+#
+# SDV_TRACE=1 also records a .NET CPU-sampling trace (EventPipe) and, after
+# the game exits, writes logs/trace-report.txt: what the game's main thread
+# was doing during the slow frames. Startup is slower while tracing, and the
+# trace grows by a few MB per second, so keep traced sessions short.
+trace_file=""
+if [ "${SDV_TRACE:-0}" = 1 ]; then
+  SDV_PROFILE=1
+  trace_file="$GAMEDIR/logs/trace.nettrace"
+fi
 if [ "${SDV_PROFILE:-0}" = 1 ]; then
   mkdir -p "$GAMEDIR/logs"
   export SDV_PERF_LOG="$GAMEDIR/logs/perf-latest.csv"
   export SDV_SLOW_FRAME_LOG="$GAMEDIR/logs/slow-frame-latest.csv"
+  export SDV_CONTENT_PROFILE_LOG="$GAMEDIR/logs/content-load-latest.csv"
   export SDV_SLOW_FRAME_MS="${SDV_SLOW_FRAME_MS:-25}"
-  rm -f "$SDV_PERF_LOG" "$SDV_SLOW_FRAME_LOG"
-  echo "Frame profiling on: logs/perf-latest.csv, logs/slow-frame-latest.csv"
+  rm -f "$SDV_PERF_LOG" "$SDV_SLOW_FRAME_LOG" "$SDV_CONTENT_PROFILE_LOG" "$GAMEDIR/logs/trace-report.txt"
+  echo "Frame profiling on: logs/perf-latest.csv, logs/slow-frame-latest.csv, logs/content-load-latest.csv"
+fi
+if [ -n "$trace_file" ]; then
+  rm -f "$trace_file"
+  export DOTNET_EnableEventPipe=1
+  export DOTNET_EventPipeOutputPath="$trace_file"
+  # Write as it goes: quitting the game ends the process with SIGKILL.
+  export DOTNET_EventPipeOutputStreaming=1
+  # CPU samples of every managed thread (~1 ms) plus method names (JIT, loader).
+  export DOTNET_EventPipeConfig="Microsoft-DotNETCore-SampleProfiler:0:5,Microsoft-Windows-DotNETRuntime:0x18:5"
+  # Precompiled framework code is only named in end-of-trace events, which a
+  # SIGKILL loses; JIT everything so every method is named as it loads.
+  export DOTNET_ReadyToRun=0
+  echo "CPU tracing on: logs/trace.nettrace (report: logs/trace-report.txt)"
 fi
 
 # First-chance exception log (written by StardewPatches.dll). Keeps the real
@@ -260,4 +285,19 @@ If the debug report showed BTimeSource::GetTime, this is a known Haiku media kit
     *) break ;;
   esac
 done
-exit $status
+
+if [ -n "$trace_file" ] && [ -s "$trace_file" ]; then
+  # Tracing settings must not apply to the report tool itself.
+  unset DOTNET_EnableEventPipe DOTNET_EventPipeOutputPath DOTNET_EventPipeOutputStreaming \
+        DOTNET_EventPipeConfig DOTNET_ReadyToRun
+  echo "Summarising the trace (this can take a minute)..."
+  if "$DOTNET" "$GAMEDIR/tools/TraceReport/TraceReport.dll" "$trace_file" \
+       "$GAMEDIR/logs/slow-frame-latest.csv" > "$GAMEDIR/logs/trace-report.txt" 2>&1; then
+    echo "Wrote logs/trace-report.txt"
+  else
+    echo "Trace summary failed; see logs/trace-report.txt"
+  fi
+elif [ -n "$trace_file" ]; then
+  echo "No trace was recorded (this .NET build may not support EventPipe)."
+fi
+exit "$status"

@@ -67,6 +67,10 @@ dotnet build "$ROOT/build/src/StardewPatches.Mainline/StardewPatches.Mainline.cs
   -c Release -nologo -v quiet -o "$WORK/patches"
 dotnet publish "$ROOT/build/src/MainlineGameDataPatcher/MainlineGameDataPatcher.csproj" \
   -c Release -nologo -v quiet -o "$WORK/patcher"
+dotnet publish "$ROOT/build/src/TraceReport/TraceReport.csproj" \
+  -c Release -nologo -v quiet -o "$WORK/tracereport"
+# TraceEvent ships Windows-only ETW helpers; they're of no use on Haiku.
+rm -rf "$WORK"/tracereport/{amd64,arm64,x86,runtimes} "$WORK"/tracereport/*.pdb "$WORK/tracereport/TraceReport"
 
 echo "== Fetching SMAPI $SMAPI_VERSION"
 smapi_zip="$WORK/smapi.zip"
@@ -89,11 +93,13 @@ mkdir -p "$OUT"/{gamedata,overrides/gamedata,tools/MainlineGameDataPatcher,dlls,
 cp "$framework_dll" "$OUT/overrides/gamedata/MonoGame.Framework.dll"
 cp "$WORK/patches/StardewPatches.dll" "$OUT/dlls/StardewPatches.dll"
 cp -R "$WORK/patcher/." "$OUT/tools/MainlineGameDataPatcher/"
+mkdir -p "$OUT/tools/TraceReport" && cp -R "$WORK/tracereport/." "$OUT/tools/TraceReport/"
 cp "$ROOT/haiku/StardewValley.sh" "$ROOT/haiku/build-native.sh" "$ROOT/haiku/setup.sh" "$ROOT/haiku/get-game-steam.sh" "$ROOT/haiku/gamepad.sh" "$OUT/"
 cp "$ROOT"/build/src/native/*.c "$ROOT"/build/src/native/*.cpp "$OUT/native-src/"
 cp "$ROOT/haiku/INSTALL.txt" "$OUT/"
 mkdir -p "$OUT/tools" && cp "$ROOT/tools/udp-relay.py" "$OUT/tools/"
 cp "$ROOT/LICENSE" "$OUT/licenses/LICENSE.Port.txt"
+cp "$ROOT/haiku/licenses/LICENSE.TraceEvent.txt" "$OUT/licenses/"
 for f in LICENSE.MonoGame.txt LICENSE.Mono.Cecil.txt; do
   cp "$ROOT/portmaster_stardewvalley_mainline/stardewvalleymainline/licenses/$f" "$OUT/licenses/"
 done

@@ -52,6 +52,8 @@ bootstrap_nvorbis() {
 
   local tmpdir
   tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/nvorbis-bootstrap.XXXXXX")"
+  # Expand now: tmpdir is local and gone by the time the EXIT trap runs.
+  # shellcheck disable=SC2064
   trap "rm -rf '$tmpdir'" EXIT
 
   # A shallow clone only has the branch tip; fetch the pinned commit itself.

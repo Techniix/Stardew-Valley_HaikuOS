@@ -12,6 +12,7 @@ Other components have their own licenses:
 | MonoGame (Producdevity fork, `portmaster-stardew-mainline` branch) | built into `MonoGame.Framework.dll` | Ms-PL, see `portmaster_stardewvalley_mainline/stardewvalleymainline/licenses/LICENSE.MonoGame.txt` |
 | Haiku patches to MonoGame | [`patches/monogame/`](patches/monogame/) | Ms-PL, same as the MonoGame files they modify |
 | Mono.Cecil | used by `MainlineGameDataPatcher` | MIT, see `.../licenses/LICENSE.Mono.Cecil.txt` |
+| Microsoft.Diagnostics.Tracing.TraceEvent (+ NETCore.Client, FastSerialization) | used by `tools/TraceReport` (summarises `SDV_TRACE=1` traces); bundled in the Haiku package | MIT, [`haiku/licenses/LICENSE.TraceEvent.txt`](haiku/licenses/LICENSE.TraceEvent.txt) |
 | NVorbis, StbImageSharp, StbImageWriteSharp | MonoGame third-party sources, fetched at build time | their own licenses (MIT) |
 | DepotDownloader + SteamKit2 (SteamRE) | downloaded by `get-game-steam.sh` at run time (pinned version + SHA-256); **not** included in this repo or package. The user's local `SteamKit2.dll` gets a one-instruction patch (wider `catch` in the machine-ID fallback) | GPL-2.0 / LGPL-2.1, ship their own `LICENSE` |
 | .NET for Haiku and its installer (trungnt2910/dotnet-builds) | downloaded by `setup.sh` at run time; not included | .NET is MIT; see that repository |

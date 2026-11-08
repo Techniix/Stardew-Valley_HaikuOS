@@ -135,6 +135,7 @@ StardewValley/
 ├── licenses/             third-party licenses
 ├── log.txt               output of the last game run
 ├── logs/exceptions.txt   every .NET exception from the last run
+├── logs/                 SDV_PROFILE / SDV_TRACE output (frame times, asset loads, trace report)
 └── VERSION               package version (include it in bug reports)
 ```
 
@@ -188,6 +189,7 @@ has a mapping. `gamepad.sh` records one:
 
 ```sh
 ./gamepad.sh          # list controllers, then map one
+./gamepad.sh list     # list controllers only
 ./gamepad.sh test     # show input exactly as the game will see it
 ./gamepad.sh raw      # show the raw values SDL reads (diagnostics)
 ```
@@ -373,7 +375,7 @@ trying large mods.
 | Crash in `BTimeSource::GetTime` (debug report) | First check `log.txt` for an `Unhandled exception`; if there is one, that's the real problem and the media crash is a side effect. Otherwise it's the Haiku media kit race. Click **Terminate** in the debugger, then **Restart media & retry** in the launcher's prompt. If it keeps happening: `SDV_RESTART_MEDIA=1 ./StardewValley.sh` restarts them before every launch; `SDV_NO_AUDIO=1` plays without sound. |
 | Game doesn't start | Check `log.txt`. Re-patch with `SDV_FORCE_PATCH=1 ./StardewValley.sh`. Confirm `gamedata/` has `Stardew Valley.dll`. |
 | Controller does nothing in game | Run `./gamepad.sh`. If it says "NOT mapped", map it. If it lists no controller, check **Preferences → Joysticks**. Connect it before starting the game. |
-| Stutter | Run `SDV_PROFILE=1 ./StardewValley.sh`, play a few minutes where it stutters, and attach `logs/slow-frame-latest.csv` and `logs/perf-latest.csv` to an issue. They show whether slow frames come from garbage collection, game logic or presenting the frame. |
+| Stutter | Run `SDV_PROFILE=1 ./StardewValley.sh`, play a few minutes where it stutters, and attach `logs/slow-frame-latest.csv`, `logs/perf-latest.csv` and `logs/content-load-latest.csv` to an issue. They show whether slow frames come from garbage collection, game logic, asset loading or presenting the frame. For long freezes, `SDV_TRACE=1 ./StardewValley.sh` also records a CPU-sampling trace and writes `logs/trace-report.txt`: the game's main-thread call stacks during the slow frames. Keep traced sessions to a few minutes; the trace grows by a few MB per second. |
 | Mods misbehave | `SDV_VANILLA=1 ./StardewValley.sh` to rule out the base game, then see [Mods](#mods-smapi). |
 
 Saves live in `~/.config/StardewValley/Saves`.

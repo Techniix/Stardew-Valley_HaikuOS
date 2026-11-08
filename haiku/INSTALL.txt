@@ -28,7 +28,8 @@ Other commands:
     SDV_RESTART_MEDIA=1 ./StardewValley.sh    restart media services first
     SDV_NO_AUDIO=1 ./StardewValley.sh         play without sound
     SDV_NO_GAMEPAD=1 ./StardewValley.sh       ignore controllers
-    SDV_PROFILE=1 ./StardewValley.sh          log frame times to logs/
+    SDV_PROFILE=1 ./StardewValley.sh          log frame times and asset loads to logs/
+    SDV_TRACE=1 ./StardewValley.sh            also trace the CPU; writes logs/trace-report.txt
 
 If the game crashes as it starts (debug report mentions
 BTimeSource::GetTime), that's a Haiku media kit bug. Terminate it in the

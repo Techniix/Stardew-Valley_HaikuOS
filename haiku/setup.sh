@@ -148,7 +148,12 @@ fi
 # --- 5. Deskbar ----------------------------------------------------------------------------
 step "5/5 Deskbar entry"
 menu_dir="$(finddir B_USER_SETTINGS_DIRECTORY 2>/dev/null || echo "$HOME/config/settings")/deskbar/menu/Applications"
-if [ -e "$menu_dir/Stardew Valley" ]; then
+entry="$menu_dir/Stardew Valley"
+if [ -L "$entry" ] && [ "$(readlink "$entry")" != "$GAMEDIR/StardewValley.sh" ]; then
+  # Left over from an older copy (moved, replaced or in the Trash).
+  ln -sf "$GAMEDIR/StardewValley.sh" "$entry"
+  echo "Deskbar entry pointed at an old copy; updated it to this folder."
+elif [ -e "$entry" ]; then
   echo "Already in the Deskbar menu."
 elif ask "Add Stardew Valley to the Deskbar Applications menu?" y; then
   mkdir -p "$menu_dir"
