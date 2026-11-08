@@ -1,0 +1,111 @@
+From cc9c791d318d65240813493d6ce75c388784d230 Mon Sep 17 00:00:00 2001
+From: Dalton Singleton <blumoon94@gmail.com>
+Date: Sat, 7 Nov 2026 21:41:46 -0500
+Subject: [PATCH] Cache the window position behind ClientBounds
+
+The game reads Window.ClientBounds several times per frame. For a
+fullscreen window SDL derives the position from the display bounds,
+which on Haiku is an app_server round trip each time (~8% of the main
+thread on the title screen). Cache the position; moves, resizes and
+display-mode changes invalidate it, and it expires after 250 ms.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01AVRp8nockFeWgKbb4pQJh9
+---
+ .../Platform/SDL/SDLGameWindow.cs             | 38 +++++++++++++++++--
+ 1 file changed, 35 insertions(+), 3 deletions(-)
+
+diff --git a/MonoGame.Framework/Platform/SDL/SDLGameWindow.cs b/MonoGame.Framework/Platform/SDL/SDLGameWindow.cs
+index 850c95ded..3bc26fe9c 100644
+--- a/MonoGame.Framework/Platform/SDL/SDLGameWindow.cs
++++ b/MonoGame.Framework/Platform/SDL/SDLGameWindow.cs
+@@ -31,8 +31,8 @@ namespace Microsoft.Xna.Framework
+         {
+             get
+             {
+-                int x = 0, y = 0;
+-                Sdl.Window.GetPosition(Handle, out x, out y);
++                int x, y;
++                GetCachedPosition(out x, out y);
+                 return new Rectangle(x, y, _width, _height);
+             }
+         }
+@@ -44,7 +44,7 @@ namespace Microsoft.Xna.Framework
+                 int x = 0, y = 0;
+ 
+                 if (!IsFullScreen)
+-                    Sdl.Window.GetPosition(Handle, out x, out y);
++                    GetCachedPosition(out x, out y);
+ 
+                 return new Point(x, y);
+             }
+@@ -52,7 +52,35 @@ namespace Microsoft.Xna.Framework
+             {
+                 Sdl.Window.SetPosition(Handle, value.X, value.Y);
+                 _wasMoved = true;
++                InvalidatePosition();
++            }
++        }
++
++        // The game reads ClientBounds several times per frame. For a
++        // fullscreen window SDL computes the position from the display's
++        // bounds, which on Haiku is a round trip to the app_server each
++        // time. Cache it; window moves, resizes and mode changes invalidate
++        // the cache, and it also expires after a quarter of a second.
++        private int _cachedX, _cachedY;
++        private bool _positionValid;
++        private long _positionTicks;
++
++        private void GetCachedPosition(out int x, out int y)
++        {
++            var now = System.Diagnostics.Stopwatch.GetTimestamp();
++            if (!_positionValid || now - _positionTicks > System.Diagnostics.Stopwatch.Frequency / 4)
++            {
++                Sdl.Window.GetPosition(Handle, out _cachedX, out _cachedY);
++                _positionTicks = now;
++                _positionValid = true;
+             }
++            x = _cachedX;
++            y = _cachedY;
++        }
++
++        internal void InvalidatePosition()
++        {
++            _positionValid = false;
+         }
+ 
+         public override DisplayOrientation CurrentOrientation
+@@ -209,6 +237,7 @@ namespace Microsoft.Xna.Framework
+         {
+             _screenDeviceName = screenDeviceName;
+ 
++            InvalidatePosition();
+             var prevBounds = ClientBounds;
+             var displayIndex = Sdl.Window.GetDisplayIndex(Handle);
+ 
+@@ -268,12 +297,14 @@ namespace Microsoft.Xna.Framework
+                 OnClientSizeChanged();
+ 
+             IsFullScreen = _willBeFullScreen;
++            InvalidatePosition();
+ 
+             _supressMoved = true;
+         }
+ 
+         internal void Moved()
+         {
++            InvalidatePosition();
+             if (_supressMoved)
+             {
+                 _supressMoved = false;
+@@ -285,6 +316,7 @@ namespace Microsoft.Xna.Framework
+ 
+         public void ClientResize(int width, int height)
+         {
++            InvalidatePosition();
+             // SDL reports many resize events even if the Size didn't change.
+             // Only call the code below if it actually changed.
+             if (_game.GraphicsDevice.PresentationParameters.BackBufferWidth == width &&
+-- 
+2.43.0
+

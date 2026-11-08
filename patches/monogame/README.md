@@ -18,6 +18,10 @@ Apply these to the `portmaster-stardew-mainline` branch of
    every frame, and on Haiku each query is an `app_server` round trip), and
    write the profiling CSVs from a background thread instead of opening and
    closing the file for every sample.
+6. `0006` Cache the window position behind `ClientBounds`, which the game reads
+   several times per frame; for a fullscreen window each read was an
+   `app_server` round trip on Haiku. Moves, resizes and mode changes
+   invalidate the cache.
 
 
 These patches modify MonoGame source files and are licensed under the
