@@ -191,7 +191,12 @@ cd "$GAMEDIR/gamedata" || exit 1
 export TERM="${TERM:-dumb}"
 
 # Controller mappings recorded by ./gamepad.sh (Haiku's SDL backend needs them).
-if [ -f "$GAMEDIR/gamecontrollerdb.txt" ]; then
+# Without a mapping SDL doesn't treat a device as a gamepad, so
+# SDV_NO_GAMEPAD=1 (no mappings at all) makes the game ignore controllers.
+if [ "${SDV_NO_GAMEPAD:-0}" = 1 ]; then
+  unset SDL_GAMECONTROLLERCONFIG SDL_GAMECONTROLLERCONFIG_FILE
+  echo "Controllers disabled (SDV_NO_GAMEPAD=1)."
+elif [ -f "$GAMEDIR/gamecontrollerdb.txt" ]; then
   export SDL_GAMECONTROLLERCONFIG_FILE="$GAMEDIR/gamecontrollerdb.txt"
 fi
 

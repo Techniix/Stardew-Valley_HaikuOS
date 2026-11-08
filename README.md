@@ -210,6 +210,10 @@ Notes:
   something the mapping can fix.
 - `setup.sh` builds the tool (`libs/sdv-gamepad`); it needs the
   `libsdl2_devel` package, which setup installs.
+- A wrong mapping (e.g. a stick bound to a trigger axis that rests at its
+  minimum) makes the cursor drift and fires random input as soon as the game
+  starts. Delete `gamecontrollerdb.txt` and map again, or start with
+  `SDV_NO_GAMEPAD=1 ./StardewValley.sh` to ignore controllers entirely.
 - Stardew's controls follow the Xbox layout: map by button *position*
   (bottom face button = A), not by the letter printed on the controller.
 
