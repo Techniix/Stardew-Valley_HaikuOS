@@ -1,7 +1,9 @@
 #!/bin/bash
 # Stardew Valley launcher for Haiku (x86_64).
 #
-# Layout (next to this script):
+# Layout (next to this script; for a package install, the writable parts
+# (gamedata, steam-depot, Mods, logs) live in the user's data folder
+# instead, see sdv-paths):
 #   gamedata/                 your own Stardew Valley files (Windows Steam or GOG build)
 #   overrides/gamedata/       Haiku-patched MonoGame.Framework.dll, copied over gamedata
 #   tools/MainlineGameDataPatcher/
@@ -16,6 +18,8 @@
 set -u
 
 GAMEDIR="$(cd -- "$(dirname -- "$(readlink -f -- "$0")")" && pwd)"
+# shellcheck source=sdv-paths
+source "$GAMEDIR/sdv-paths"
 
 # Refuse to run from the Trash, e.g. a Terminal still sitting in a folder
 # that was moved there after a newer package was unzipped elsewhere.
@@ -26,8 +30,8 @@ case "$GAMEDIR" in
     exit 1 ;;
 esac
 [ -f "$GAMEDIR/VERSION" ] && echo "Stardew Valley for Haiku $(cat "$GAMEDIR/VERSION")"
-cd "$GAMEDIR" || exit 1
-exec > >(tee "$GAMEDIR/log.txt") 2>&1
+cd "$DATADIR" || exit 1
+exec > >(tee "$DATADIR/log.txt") 2>&1
 
 fail() {
   echo "ERROR: $*"
@@ -68,13 +72,19 @@ echo "Using .NET runtime $runtime_version from $DOTNET_ROOT"
 export LIBRARY_PATH="$GAMEDIR/libs:%A/libs${LIBRARY_PATH:+:$LIBRARY_PATH}"
 
 # --- game files -------------------------------------------------------------
-if [ ! -f "$GAMEDIR/gamedata/Stardew Valley.dll" ]; then
-  if [ -f "$GAMEDIR/gamedata/Stardew Valley.exe" ] || [ -f "$GAMEDIR/gamedata/StardewValley.exe" ]; then
-    fail "These are the old compatibility-branch files. Copy the regular (mainline) 1.6 game files into gamedata/."
+if [ ! -f "$DATADIR/gamedata/Stardew Valley.dll" ]; then
+  if [ -f "$DATADIR/gamedata/Stardew Valley.exe" ] || [ -f "$DATADIR/gamedata/StardewValley.exe" ]; then
+    fail "These are the old compatibility-branch files. Copy the regular (mainline) 1.6 game files into $DATADIR/gamedata/."
   fi
-  fail "Missing game files. Run ./get-game-steam.sh to download them from Steam, or copy your Stardew Valley install (Windows Steam or GOG) into $GAMEDIR/gamedata/."
+  # Started from the Deskbar before setup: open setup in a Terminal window.
+  if [ ! -t 0 ] && command -v Terminal >/dev/null 2>&1; then
+    echo "No game files yet; opening setup in Terminal."
+    Terminal -t "Stardew Valley setup" "$GAMEDIR/setup.sh" &
+    exit 0
+  fi
+  fail "Missing game files. Run $GAMEDIR/setup.sh (or get-game-steam.sh) to download them from Steam, or copy your Stardew Valley install (Windows Steam or GOG) into $DATADIR/gamedata/."
 fi
-if [ ! -f "$GAMEDIR/gamedata/Stardew Valley.deps.json" ] || [ ! -f "$GAMEDIR/gamedata/Stardew Valley.runtimeconfig.json" ]; then
+if [ ! -f "$DATADIR/gamedata/Stardew Valley.deps.json" ] || [ ! -f "$DATADIR/gamedata/Stardew Valley.runtimeconfig.json" ]; then
   fail "Incomplete game files in gamedata/ (deps.json or runtimeconfig.json missing)."
 fi
 
@@ -82,17 +92,17 @@ fi
 # Same rule as the PortMaster port: SMAPI starts automatically when Mods/
 # contains anything besides SMAPI's own ConsoleCommands/SaveBackup.
 # SDV_FORCE_SMAPI=1 forces SMAPI, SDV_VANILLA=1 forces the unmodded game.
-mkdir -p "$GAMEDIR/Mods"
+mkdir -p "$DATADIR/Mods"
 # shellcheck source=/dev/null
 source "$GAMEDIR/tools/smapi-common"
-launch_mode="$(sdv_smapi_determine_mode "$GAMEDIR/Mods")"
+launch_mode="$(sdv_smapi_determine_mode "$DATADIR/Mods")"
 [ "${SDV_VANILLA:-0}" = 1 ] && launch_mode=vanilla
 echo "Launch mode: $launch_mode"
 
 patcher_args=(
-  --game-dir "$GAMEDIR/gamedata"
+  --game-dir "$DATADIR/gamedata"
   --overlay-dir "$GAMEDIR/overrides/gamedata"
-  --mods-dir "$GAMEDIR/Mods"
+  --mods-dir "$DATADIR/Mods"
   --profile desktop
   --runtime-target ".NETCoreApp,Version=v6.0/haiku-x64"
   --framework-version "$runtime_version"
@@ -108,23 +118,23 @@ if [ "$launch_mode" = smapi ]; then
     --smapi-patch-assembly "$GAMEDIR/dlls/StardewPatches.dll"
   )
   entry_assembly="StardewModdingAPI.dll"
-  patch_assembly="$GAMEDIR/gamedata/smapi-internal/StardewPatches.dll"
+  patch_assembly="$DATADIR/gamedata/smapi-internal/StardewPatches.dll"
 fi
 
 # --- patch game files (once per game/port update or mode switch) ------------
 # The patcher also fixes up mod assemblies, so re-run it when Mods/ changes.
-stamp="$GAMEDIR/gamedata/.haiku-patched"
+stamp="$DATADIR/gamedata/.haiku-patched"
 needs_patch=0
 [ -f "$stamp" ] || needs_patch=1
 [ "$needs_patch" = 0 ] && [ "$(cat "$stamp" 2>/dev/null)" != "$launch_mode $runtime_version" ] && needs_patch=1
-[ "$needs_patch" = 0 ] && [ -n "$(find "$GAMEDIR/Mods" -newer "$stamp" -print -quit 2>/dev/null)" ] && needs_patch=1
+[ "$needs_patch" = 0 ] && [ -n "$(find "$DATADIR/Mods" -newer "$stamp" -print -quit 2>/dev/null)" ] && needs_patch=1
 
 # Refresh SMAPI's built-in mods only after the change check above, since
 # copying them updates their timestamps.
 if [ "$launch_mode" = smapi ]; then
-  sdv_smapi_sync_default_mods "$GAMEDIR/tools/SMAPIBundle/default-mods" "$GAMEDIR/Mods"
+  sdv_smapi_sync_default_mods "$GAMEDIR/tools/SMAPIBundle/default-mods" "$DATADIR/Mods"
 fi
-for f in "$GAMEDIR/gamedata/Stardew Valley.deps.json" \
+for f in "$DATADIR/gamedata/Stardew Valley.deps.json" \
          "$GAMEDIR/overrides/gamedata/MonoGame.Framework.dll" \
          "$GAMEDIR/tools/MainlineGameDataPatcher/MainlineGameDataPatcher.dll"; do
   [ "$needs_patch" = 1 ] && break
@@ -180,15 +190,15 @@ export MONOGAME_PATCH="$patch_assembly"
 trace_file=""
 if [ "${SDV_TRACE:-0}" = 1 ]; then
   SDV_PROFILE=1
-  trace_file="$GAMEDIR/logs/trace.nettrace"
+  trace_file="$DATADIR/logs/trace.nettrace"
 fi
 if [ "${SDV_PROFILE:-0}" = 1 ]; then
-  mkdir -p "$GAMEDIR/logs"
-  export SDV_PERF_LOG="$GAMEDIR/logs/perf-latest.csv"
-  export SDV_SLOW_FRAME_LOG="$GAMEDIR/logs/slow-frame-latest.csv"
-  export SDV_CONTENT_PROFILE_LOG="$GAMEDIR/logs/content-load-latest.csv"
+  mkdir -p "$DATADIR/logs"
+  export SDV_PERF_LOG="$DATADIR/logs/perf-latest.csv"
+  export SDV_SLOW_FRAME_LOG="$DATADIR/logs/slow-frame-latest.csv"
+  export SDV_CONTENT_PROFILE_LOG="$DATADIR/logs/content-load-latest.csv"
   export SDV_SLOW_FRAME_MS="${SDV_SLOW_FRAME_MS:-25}"
-  rm -f "$SDV_PERF_LOG" "$SDV_SLOW_FRAME_LOG" "$SDV_CONTENT_PROFILE_LOG" "$GAMEDIR/logs/trace-report.txt"
+  rm -f "$SDV_PERF_LOG" "$SDV_SLOW_FRAME_LOG" "$SDV_CONTENT_PROFILE_LOG" "$DATADIR/logs/trace-report.txt"
   echo "Frame profiling on: logs/perf-latest.csv, logs/slow-frame-latest.csv, logs/content-load-latest.csv"
 fi
 if [ -n "$trace_file" ]; then
@@ -210,17 +220,17 @@ fi
 if [ "${SDV_EXCEPTION_LOG:-}" = 0 ]; then
   unset SDV_EXCEPTION_LOG
 else
-  export SDV_EXCEPTION_LOG="$GAMEDIR/logs/exceptions.txt"
+  export SDV_EXCEPTION_LOG="$DATADIR/logs/exceptions.txt"
 fi
 if [ "$launch_mode" = smapi ]; then
-  export SMAPI_MODS_PATH="$GAMEDIR/Mods"
+  export SMAPI_MODS_PATH="$DATADIR/Mods"
   # Keep SMAPI's console output in this terminal / log.txt instead of
   # letting it try to open a Linux terminal emulator.
   export SMAPI_USE_CURRENT_SHELL=true
 else
   unset SMAPI_MODS_PATH SMAPI_USE_CURRENT_SHELL
 fi
-cd "$GAMEDIR/gamedata" || exit 1
+cd "$DATADIR/gamedata" || exit 1
 # SDL2 on Haiku chdir()s to the executable's folder (here: dotnet/) when TERM
 # is unset, i.e. when started from Deskbar/Tracker. The game opens some
 # content with paths relative to the working directory, so that breaks
@@ -234,13 +244,13 @@ export TERM="${TERM:-dumb}"
 if [ "${SDV_NO_GAMEPAD:-0}" = 1 ]; then
   unset SDL_GAMECONTROLLERCONFIG SDL_GAMECONTROLLERCONFIG_FILE
   echo "Controllers disabled (SDV_NO_GAMEPAD=1)."
-elif [ -f "$GAMEDIR/gamecontrollerdb.txt" ]; then
-  export SDL_GAMECONTROLLERCONFIG_FILE="$GAMEDIR/gamecontrollerdb.txt"
+elif [ -f "$DATADIR/gamecontrollerdb.txt" ]; then
+  export SDL_GAMECONTROLLERCONFIG_FILE="$DATADIR/gamecontrollerdb.txt"
 fi
 
 retried=0
 while :; do
-  log_start=$(wc -l < "$GAMEDIR/log.txt" 2>/dev/null || echo 0)
+  log_start=$(wc -l < "$DATADIR/log.txt" 2>/dev/null || echo 0)
   "$DOTNET" "$entry_assembly" "$@"
   status=$?
   echo "Stardew Valley exited with status $status."
@@ -248,7 +258,7 @@ while :; do
   # An unhandled .NET exception means the game itself failed; any media kit
   # crash in the debug report is then a side effect of the process dying.
   sleep 1  # let tee flush
-  game_error="$(tail -n +"$((log_start + 1))" "$GAMEDIR/log.txt" 2>/dev/null \
+  game_error="$(tail -n +"$((log_start + 1))" "$DATADIR/log.txt" 2>/dev/null \
     | grep -m1 -A1 "^Unhandled exception" | tr '\n' ' ' | cut -c1-300)"
   if [ "$status" -gt 128 ] && [ -n "$game_error" ]; then
     echo "The game failed with an error; see log.txt and logs/exceptions.txt."
@@ -293,7 +303,7 @@ if [ -n "$trace_file" ] && [ -s "$trace_file" ]; then
         DOTNET_EventPipeConfig DOTNET_ReadyToRun
   echo "Summarising the trace (this can take a minute)..."
   if "$DOTNET" "$GAMEDIR/tools/TraceReport/TraceReport.dll" "$trace_file" \
-       "$GAMEDIR/logs/slow-frame-latest.csv" > "$GAMEDIR/logs/trace-report.txt" 2>&1; then
+       "$DATADIR/logs/slow-frame-latest.csv" > "$DATADIR/logs/trace-report.txt" 2>&1; then
     echo "Wrote logs/trace-report.txt"
   else
     echo "Trace summary failed; see logs/trace-report.txt"

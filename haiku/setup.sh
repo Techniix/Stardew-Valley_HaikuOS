@@ -18,6 +18,8 @@
 set -euo pipefail
 
 GAMEDIR="$(cd -- "$(dirname -- "$(readlink -f -- "$0")")" && pwd)"
+# shellcheck source=sdv-paths
+source "$GAMEDIR/sdv-paths"
 
 # Refuse to run from the Trash, e.g. a Terminal still sitting in a folder
 # that was moved there after a newer package was unzipped elsewhere.
@@ -67,8 +69,12 @@ packages=(
   gmp krb5 libiconv llvm12_libunwind mpfr          # needed by .NET on Haiku
   jq curl unzip                                    # used by the installers
 )
-echo "Installing: ${packages[*]}"
-pkgman install -y "${packages[@]}"
+if [ "$PACKAGED" = 1 ]; then
+  echo "Installed as a Haiku package: pkgman already installed what it needs."
+else
+  echo "Installing: ${packages[*]}"
+  pkgman install -y "${packages[@]}"
+fi
 
 # --- 2. .NET ------------------------------------------------------------------------
 step "2/5 .NET runtime"
@@ -104,7 +110,9 @@ export DOTNET_ROOT="$dotnet_root"
 
 # --- 3. native shims ------------------------------------------------------------------
 step "3/5 Native shims"
-if [ -f "$GAMEDIR/libs/.built" ] && [ -z "$(find "$GAMEDIR/native-src" -newer "$GAMEDIR/libs/.built" -print -quit)" ]; then
+if [ "$PACKAGED" = 1 ]; then
+  echo "Included in the package."
+elif [ -f "$GAMEDIR/libs/.built" ] && [ -z "$(find "$GAMEDIR/native-src" -newer "$GAMEDIR/libs/.built" -print -quit)" ]; then
   echo "Already built, skipping."
 else
   "$GAMEDIR/build-native.sh" "$GAMEDIR/libs"
@@ -112,9 +120,9 @@ fi
 
 # --- 4. game files ---------------------------------------------------------------------
 step "4/5 Game files"
-if [ -f "$GAMEDIR/gamedata/Stardew Valley.dll" ]; then
+if [ -f "$DATADIR/gamedata/Stardew Valley.dll" ]; then
   echo "Game files already present in gamedata/."
-  if [ "$get_game" = 1 ] && [ -d "$GAMEDIR/steam-depot" ] && ask "Check Steam for a game update?" n; then
+  if [ "$get_game" = 1 ] && [ -d "$DATADIR/steam-depot" ] && ask "Check Steam for a game update?" n; then
     "$GAMEDIR/get-game-steam.sh" --update
   fi
 elif [ "$get_game" = 1 ] && ask "Download Stardew Valley from Steam now? (you must own it)" y; then
@@ -126,13 +134,13 @@ elif [ "$get_game" = 1 ] && ask "Download Stardew Valley from Steam now? (you mu
 else
   echo "Copy your Stardew Valley 1.6 folder (the one with 'Stardew Valley.dll',"
   echo "Windows build from Steam or GOG) into:"
-  echo "  $GAMEDIR/gamedata/"
+  echo "  $DATADIR/gamedata/"
 fi
 
 # --- gamepad (optional) ---------------------------------------------------------
 if [ -x "$GAMEDIR/libs/sdv-gamepad" ]; then
   step "Gamepad (optional)"
-  if SDL_GAMECONTROLLERCONFIG_FILE="$GAMEDIR/gamecontrollerdb.txt" \
+  if SDL_GAMECONTROLLERCONFIG_FILE="$DATADIR/gamecontrollerdb.txt" \
       "$GAMEDIR/libs/sdv-gamepad" list 2>/dev/null | grep -q "NOT mapped"; then
     echo "A controller is connected but not set up for games yet."
     if ask "Map it now? (takes about a minute)" y; then
@@ -149,7 +157,9 @@ fi
 step "5/5 Deskbar entry"
 menu_dir="$(finddir B_USER_SETTINGS_DIRECTORY 2>/dev/null || echo "$HOME/config/settings")/deskbar/menu/Applications"
 entry="$menu_dir/Stardew Valley"
-if [ -L "$entry" ] && [ "$(readlink "$entry")" != "$GAMEDIR/StardewValley.sh" ]; then
+if [ "$PACKAGED" = 1 ]; then
+  echo "The package already adds Stardew Valley to the Deskbar."
+elif [ -L "$entry" ] && [ "$(readlink "$entry")" != "$GAMEDIR/StardewValley.sh" ]; then
   # Left over from an older copy (moved, replaced or in the Trash).
   ln -sf "$GAMEDIR/StardewValley.sh" "$entry"
   echo "Deskbar entry pointed at an old copy; updated it to this folder."

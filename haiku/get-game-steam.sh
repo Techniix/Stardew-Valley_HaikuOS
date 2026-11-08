@@ -19,6 +19,8 @@
 set -euo pipefail
 
 GAMEDIR="$(cd -- "$(dirname -- "$(readlink -f -- "$0")")" && pwd)"
+# shellcheck source=sdv-paths
+source "$GAMEDIR/sdv-paths"
 
 # Refuse to run from the Trash, e.g. a Terminal still sitting in a folder
 # that was moved there after a newer package was unzipped elsewhere.
@@ -34,11 +36,11 @@ APP_ID=413150
 DD_VERSION="3.4.0"
 DD_URL="https://github.com/SteamRE/DepotDownloader/releases/download/DepotDownloader_${DD_VERSION}/DepotDownloader-framework.zip"
 DD_SHA256="7419f65efb7eb16b6e56987ed1b76475f29c02475c0016166c84798388e796bc"
-DD_DIR="$GAMEDIR/tools/DepotDownloader"
+DD_DIR="$DATADIR/tools/DepotDownloader"
 
 # Pristine Steam download; gamedata/ is a patched copy made from it, so
 # updates never fight with the files the Haiku patcher changes.
-DEPOT_DIR="$GAMEDIR/steam-depot"
+DEPOT_DIR="$DATADIR/steam-depot"
 
 use_qr=0
 for arg in "$@"; do
@@ -101,7 +103,8 @@ login_args=()
 if [ "$use_qr" = 1 ]; then
   login_args=(-qr)
 else
-  saved_user_file="$GAMEDIR/tools/.steam-user"
+  saved_user_file="$DATADIR/tools/.steam-user"
+  mkdir -p "$DATADIR/tools"
   saved_user="$(cat "$saved_user_file" 2>/dev/null || true)"
   if [ -n "$saved_user" ]; then
     read -r -p "Steam username [$saved_user]: " steam_user
@@ -201,11 +204,11 @@ fi
 
 # --- refresh gamedata/ from the pristine download --------------------------------
 echo "Copying game files into gamedata/ ..."
-rm -rf "$GAMEDIR/gamedata"
-mkdir -p "$GAMEDIR/gamedata"
-( cd "$DEPOT_DIR" && tar --exclude=./.DepotDownloader -cf - . ) | ( cd "$GAMEDIR/gamedata" && tar -xf - )
+rm -rf "$DATADIR/gamedata"
+mkdir -p "$DATADIR/gamedata"
+( cd "$DEPOT_DIR" && tar --exclude=./.DepotDownloader -cf - . ) | ( cd "$DATADIR/gamedata" && tar -xf - )
 # Forces StardewValley.sh to re-patch on next launch.
-rm -f "$GAMEDIR/gamedata/.haiku-patched"
+rm -f "$DATADIR/gamedata/.haiku-patched"
 
 echo
 echo "Done. Start the game with ./StardewValley.sh"

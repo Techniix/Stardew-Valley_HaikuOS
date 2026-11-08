@@ -15,8 +15,10 @@
 set -euo pipefail
 
 GAMEDIR="$(cd -- "$(dirname -- "$(readlink -f -- "$0")")" && pwd)"
+# shellcheck source=sdv-paths
+source "$GAMEDIR/sdv-paths"
 TOOL="$GAMEDIR/libs/sdv-gamepad"
-DB="$GAMEDIR/gamecontrollerdb.txt"
+DB="$DATADIR/gamecontrollerdb.txt"
 
 if [ ! -x "$TOOL" ]; then
   echo "The gamepad tool isn't built. Run ./setup.sh (it needs the libsdl2_devel package)." >&2
