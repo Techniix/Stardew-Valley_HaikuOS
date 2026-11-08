@@ -217,6 +217,13 @@ Details are in log.txt and logs/exceptions.txt in the game folder. Please includ
     break
   fi
 
+  # 137 = SIGKILL: killed on purpose (Deskbar/Team Monitor/kill), not a
+  # crash. Don't offer crash workarounds.
+  if [ "$status" -eq 137 ]; then
+    echo "Stardew Valley was killed (SIGKILL)."
+    break
+  fi
+
   # > 128 means killed by a signal, e.g. a segfault terminated from the
   # Haiku debugger dialog. Offer the media-kit workarounds once.
   if [ "$status" -le 128 ] || [ "$retried" = 1 ] || [ "${ALSOFT_DRIVERS:-}" = null ] \
