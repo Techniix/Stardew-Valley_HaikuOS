@@ -45,8 +45,11 @@ must be opt-in via arguments so the PortMaster defaults stay unchanged.
 
 ## Releases
 
-Push a tag named `haiku-vX.Y.Z`; CI builds the package and publishes a GitHub
-release with `StardewValley-haiku.zip`.
+Add release notes as `docs/release-notes/haiku-vX.Y.Z.md`, then either push a
+tag named `haiku-vX.Y.Z`, or open **Actions → Haiku package → Run workflow**
+and enter `haiku-vX.Y.Z` as the release tag. CI builds the package (its
+`VERSION` file is the tag), creates the tag and publishes a GitHub release
+with `StardewValley-haiku.zip`.
 
 ## Upstream work
 

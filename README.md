@@ -446,7 +446,7 @@ it's missing, applies [`patches/monogame/`](patches/monogame/), fetches SMAPI
 Haiku by `setup.sh`.
 
 CI ([`.github/workflows/haiku-package.yml`](.github/workflows/haiku-package.yml))
-builds the package on every push; pushing a `haiku-v*` tag publishes a release.
+builds the package on every push and publishes releases (see [`CONTRIBUTING.md`](CONTRIBUTING.md#releases)).
 See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Roadmap

@@ -120,7 +120,12 @@ cp "$ROOT/portmaster_stardewvalley_mainline/stardewvalleymainline/tools/smapi-co
 
 chmod +x "$OUT"/*.sh
 touch "$OUT/gamedata/.keep" "$OUT/Mods/.keep"
-echo "haiku-$(git -C "$ROOT" rev-parse --short HEAD)" > "$OUT/VERSION" 2>/dev/null || echo unknown > "$OUT/VERSION"
+# SDV_VERSION (e.g. haiku-v0.1.0) is set by CI for releases; otherwise the commit.
+if [ -n "${SDV_VERSION:-}" ]; then
+  echo "$SDV_VERSION" > "$OUT/VERSION"
+else
+  echo "haiku-$(git -C "$ROOT" rev-parse --short HEAD)" > "$OUT/VERSION" 2>/dev/null || echo unknown > "$OUT/VERSION"
+fi
 
 ( cd "$ROOT/haiku/out" && rm -f StardewValley-haiku.zip && zip -qr StardewValley-haiku.zip StardewValley )
 echo "Done: $ROOT/haiku/out/StardewValley-haiku.zip"

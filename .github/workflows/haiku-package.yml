@@ -6,6 +6,11 @@ on:
     tags: ["haiku-v*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Publish a release with this tag (e.g. haiku-v0.1.0); leave empty to just build"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -13,7 +18,19 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # A release comes from pushing a haiku-v* tag or from running the
+      # workflow by hand with release_tag set.
+      RELEASE_TAG: ${{ inputs.release_tag || (startsWith(github.ref, 'refs/tags/haiku-v') && github.ref_name) || '' }}
     steps:
+      - name: Check release tag
+        if: env.RELEASE_TAG != ''
+        run: |
+          case "$RELEASE_TAG" in
+            haiku-v[0-9]*) ;;
+            *) echo "Release tags must look like haiku-v1.2.3 (got '$RELEASE_TAG')"; exit 1 ;;
+          esac
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -28,7 +45,7 @@ jobs:
           shellcheck -S warning haiku/*.sh
 
       - name: Build managed parts and assemble package
-        run: ./haiku/build-managed.sh
+        run: SDV_VERSION="$RELEASE_TAG" ./haiku/build-managed.sh
 
       - name: Check native shims compile
         run: ./haiku/build-native.sh /tmp/shim-check
@@ -39,9 +56,9 @@ jobs:
           path: haiku/out/StardewValley-haiku.zip
 
       - name: Release notes
-        if: startsWith(github.ref, 'refs/tags/haiku-v')
+        if: env.RELEASE_TAG != ''
         run: |
-          notes="docs/release-notes/${GITHUB_REF_NAME}.md"
+          notes="docs/release-notes/${RELEASE_TAG}.md"
           if [ ! -f "$notes" ]; then
             notes="$RUNNER_TEMP/notes.md"
             printf '%s\n' \
@@ -52,8 +69,11 @@ jobs:
           echo "NOTES_FILE=$notes" >> "$GITHUB_ENV"
 
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/haiku-v')
+        if: env.RELEASE_TAG != ''
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: ${{ github.sha }}
+          name: Stardew Valley for HaikuOS ${{ env.RELEASE_TAG }}
           files: haiku/out/StardewValley-haiku.zip
           body_path: ${{ env.NOTES_FILE }}
