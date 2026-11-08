@@ -38,13 +38,22 @@ jobs:
           name: StardewValley-haiku
           path: haiku/out/StardewValley-haiku.zip
 
+      - name: Release notes
+        if: startsWith(github.ref, 'refs/tags/haiku-v')
+        run: |
+          notes="docs/release-notes/${GITHUB_REF_NAME}.md"
+          if [ ! -f "$notes" ]; then
+            notes="$RUNNER_TEMP/notes.md"
+            printf '%s\n' \
+              'Unzip on Haiku (x86_64), then run `./setup.sh` in Terminal.' \
+              'Contains no game files; you need your own copy of Stardew Valley.' \
+              'See the README for details.' > "$notes"
+          fi
+          echo "NOTES_FILE=$notes" >> "$GITHUB_ENV"
+
       - name: Publish release
         if: startsWith(github.ref, 'refs/tags/haiku-v')
         uses: softprops/action-gh-release@v2
         with:
           files: haiku/out/StardewValley-haiku.zip
-          generate_release_notes: true
-          body: |
-            Unzip on Haiku (x86_64), then run `./setup.sh` in Terminal.
-            Contains no game files; you need your own copy of Stardew Valley.
-            See the README for details.
+          body_path: ${{ env.NOTES_FILE }}
