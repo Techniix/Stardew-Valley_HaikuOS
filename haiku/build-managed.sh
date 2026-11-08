@@ -42,13 +42,21 @@ if [ "$monogame_head" != "$MONOGAME_COMMIT" ]; then
 fi
 
 echo "== Applying Haiku MonoGame patches"
-for patch in "$ROOT"/patches/monogame/*.patch; do
-  if git -C "$MONOGAME_ROOT" apply --reverse --check "$patch" >/dev/null 2>&1; then
-    echo "   already applied: $(basename "$patch")"
+# Patches can touch the same files, so checking them one by one for "already
+# applied" is unreliable. Instead restore every file the series touches to the
+# pinned commit, then apply the whole series.
+patches=("$ROOT"/patches/monogame/*.patch)
+mapfile -t touched < <(for patch in "${patches[@]}"; do git apply --numstat "$patch" | cut -f3; done | sort -u)
+for file in "${touched[@]}"; do
+  if git -C "$MONOGAME_ROOT" cat-file -e "$MONOGAME_COMMIT:$file" 2>/dev/null; then
+    git -C "$MONOGAME_ROOT" checkout -q "$MONOGAME_COMMIT" -- "$file"
   else
-    git -C "$MONOGAME_ROOT" apply "$patch"
-    echo "   applied: $(basename "$patch")"
+    rm -f "$MONOGAME_ROOT/$file"   # added by a patch
   fi
+done
+for patch in "${patches[@]}"; do
+  git -C "$MONOGAME_ROOT" apply "$patch"
+  echo "   applied: $(basename "$patch")"
 done
 
 echo "== Fetching MonoGame third-party sources"
