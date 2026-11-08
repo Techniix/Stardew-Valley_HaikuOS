@@ -11,7 +11,7 @@ Unzip `StardewValley-haiku.zip` over your existing `StardewValley` folder; your 
 - **Package installs keep their data in `~/config/settings/StardewValley`.** 0.1.1 used `~/config/data`, which on Haiku is a read-only view of installed packages, so an installed package couldn't start. Zip installs still keep everything in their own folder.
 - **Clear error instead of silence:** if the launcher can't write to its data folder, it now says so in an alert. Started from the Deskbar, it previously exited without any message.
 - **Smaller package:** the Linux-only launchers that came with the patcher and SMAPI are no longer included; on Haiku both run through .NET.
-- **HaikuPorter recipe** in `haiku/haikuports/`, with a guide in `docs/HaikuPorts.md`.
+- **HaikuPorter recipe** in `haiku/haikuports/`, with a guide in `docs/Packaging.md`.
 
 ## Known issues
 

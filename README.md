@@ -26,6 +26,20 @@ and can download your own copy of the game straight from Steam on Haiku.
 
 ## Quick start
 
+**As a Haiku package** (installs to the system, updates through HaikuDepot):
+
+```sh
+pkgman add-repo https://techniix.github.io/haiku-packages/x86_64/current
+pkgman install stardew_valley_haiku
+```
+
+Then start **Stardew Valley** from the Deskbar. The first start opens setup in
+Terminal to download the game with your Steam account (or tells you where to
+copy an existing install). Game files, saves, mods and settings live in
+`~/config/settings/StardewValley`. See [docs/Packaging.md](docs/Packaging.md).
+
+**From the zip:**
+
 1. Download `StardewValley-haiku.zip` from
    [Releases](https://github.com/Techniix/Stardew-Valley_HaikuOS/releases)
    (or [build it](#building-from-source)) and unzip it wherever you like.
@@ -462,7 +476,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 - [ ] Get the media kit time-source race fixed in Haiku
 - [ ] Confirm SMAPI/Harmony on Haiku
 - [ ] Confirm direct-IP multiplayer (host and join)
-- [ ] `.hpkg` package and HaikuDepot submission (recipe in `haiku/haikuports/`, see [docs/HaikuPorts.md](docs/HaikuPorts.md); needs testing on Haiku)
+- [x] `.hpkg` package and package repository for HaikuDepot ([docs/Packaging.md](docs/Packaging.md))
 - [ ] GOG downloader alongside Steam
 - [ ] Upstream fixes: SteamKit2 (`PlatformNotSupportedException` fallback),
       MonoGame Haiku support, .NET on Haiku (`NetworkInterface`, slow

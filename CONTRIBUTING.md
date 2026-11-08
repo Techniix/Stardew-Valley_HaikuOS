@@ -11,7 +11,8 @@ containing your Steam password.
 | Path | What it is |
 |---|---|
 | `haiku/` | Haiku launcher, setup, Steam downloader and build scripts |
-| `haiku/haikuports/` | HaikuPorter recipe for a `.hpkg` (see `docs/HaikuPorts.md`) |
+| `haiku/haikuports/` | HaikuPorter recipe for the `.hpkg` (see `docs/Packaging.md`) |
+| `haiku/publish-hpkg.sh` | Builds the `.hpkg` on Haiku and publishes it |
 | `patches/monogame/` | Haiku patches for the MonoGame fork (Ms-PL) |
 | `build/src/MainlineGameDataPatcher/` | Patcher shared with the PortMaster build (Mono.Cecil) |
 | `build/src/native/` | Native shims and Haiku tools (C/C++) |
@@ -51,6 +52,10 @@ tag named `haiku-vX.Y.Z`, or open **Actions → Haiku package → Run workflow**
 and enter `haiku-vX.Y.Z` as the release tag. CI builds the package (its
 `VERSION` file is the tag), creates the tag and publishes a GitHub release
 with `StardewValley-haiku.zip`.
+
+Then, on Haiku, run `./haiku/publish-hpkg.sh` to build the Haiku package from
+that release, attach it to the release and publish it in the package
+repository (details in `docs/Packaging.md`).
 
 ## Upstream work
 
