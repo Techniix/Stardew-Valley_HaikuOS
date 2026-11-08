@@ -8,7 +8,7 @@ downloader.
 You need to own Stardew Valley (Steam, or the Windows build from GOG): this package contains no \
 game files. On first start, setup opens in Terminal and offers to download the game with your \
 own Steam account, or tells you where to copy an existing install. Game files, mods, logs \
-and settings are kept in ~/config/data/StardewValley.
+and settings are kept in ~/config/settings/StardewValley.
 
 This project is unofficial and not affiliated with ConcernedApe."
 HOMEPAGE="https://github.com/Techniix/Stardew-Valley_HaikuOS"
@@ -22,7 +22,7 @@ LICENSE="MIT
 	Ms-PL"
 REVISION="1"
 SOURCE_URI="https://github.com/Techniix/Stardew-Valley_HaikuOS/releases/download/haiku-v$portVersion/StardewValley-haiku.zip"
-CHECKSUM_SHA256="404fe0c0de64c9d4d8e5ee8fe888fec8b9367efcebfc9d88bb828a477ea663c3"
+CHECKSUM_SHA256="UPDATE-AFTER-RELEASE"
 SOURCE_DIR="StardewValley"
 # The Haiku build of .NET (trungnt2910/dotnet-builds); only the runtime is
 # installed. Unpacked in INSTALL because the archive has no top-level folder.
@@ -82,7 +82,7 @@ INSTALL()
 	chmod 755 $appDir/*.sh $appDir/tools/udp-relay.py
 
 	# Tells the scripts they run from a read-only package: writable data
-	# goes to ~/config/data/StardewValley and setup skips pkgman and builds.
+	# goes to ~/config/settings/StardewValley and setup skips pkgman and builds.
 	touch $appDir/.packaged
 	rm -f $appDir/gamedata/.keep $appDir/Mods/.keep
 	rmdir $appDir/gamedata $appDir/Mods 2>/dev/null || true

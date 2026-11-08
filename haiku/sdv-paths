@@ -5,14 +5,20 @@
 # DATADIR holds everything that's written: game files, downloads, mods,
 # logs and the controller mapping. For the zip package they're the same
 # folder. A Haiku package (.hpkg) installs GAMEDIR read-only, so DATADIR
-# moves to the user's data folder. SDV_DATA_DIR overrides it.
+# moves to ~/config/settings/StardewValley. (Not ~/config/data: that is a
+# read-only view of installed packages.) SDV_DATA_DIR overrides it.
 if [ -n "${SDV_DATA_DIR:-}" ]; then
   DATADIR="$SDV_DATA_DIR"
 elif [ -f "$GAMEDIR/.packaged" ]; then
-  DATADIR="$(finddir B_USER_DATA_DIRECTORY 2>/dev/null || echo "$HOME/config/data")/StardewValley"
+  DATADIR="$(finddir B_USER_SETTINGS_DIRECTORY 2>/dev/null || echo "$HOME/config/settings")/StardewValley"
 else
   DATADIR="$GAMEDIR"
 fi
 # Read by the scripts that source this file.
 if [ -f "$GAMEDIR/.packaged" ]; then export PACKAGED=1; else export PACKAGED=0; fi
-mkdir -p "$DATADIR"
+if ! mkdir -p "$DATADIR" 2>/dev/null || [ ! -w "$DATADIR" ]; then
+  echo "ERROR: can't write to $DATADIR" >&2
+  command -v alert >/dev/null 2>&1 \
+    && alert --stop "Stardew Valley can't write to $DATADIR." "OK" >/dev/null
+  exit 1
+fi
