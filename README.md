@@ -7,12 +7,11 @@ and can download your own copy of the game straight from Steam on Haiku.
 **This project contains no game files.** You need to own Stardew Valley
 (Steam, or the Windows build from GOG).
 
-> **Status: early but working.** Setup, Steam download, updating an
-> existing install and the game itself (with sound, launched from Terminal
-> or the Deskbar) are confirmed on real hardware (Haiku hrev60368, Ryzen 5
-> 7600X, RTX 5070). Not confirmed yet: SMAPI/mods, gamepads, direct-IP
-> multiplayer. Online play via Steam
-> friends or invite codes isn't possible on Haiku (see
+> **Status: playable.** Setup, Steam download, updates, sound, gamepads and
+> launching from Terminal or the Deskbar are confirmed on real hardware
+> (Haiku hrev60368, Ryzen 5 7600X, RTX 5070), where the game holds a steady
+> 60 fps. Not confirmed yet: SMAPI/mods and direct-IP multiplayer. Online
+> play via Steam friends or invite codes isn't possible on Haiku (see
 > [Multiplayer](#multiplayer)). Bug reports with `log.txt` are very welcome.
 
 - [Quick start](#quick-start)
@@ -21,6 +20,7 @@ and can download your own copy of the game straight from Steam on Haiku.
 - [Gamepads](#gamepads)
 - [Multiplayer](#multiplayer)
 - [Mods (SMAPI)](#mods-smapi)
+- [Performance and profiling](#performance-and-profiling)
 - [Troubleshooting](#troubleshooting)
 - [Building from source](#building-from-source)
 
@@ -109,6 +109,10 @@ platform-neutral .NET, so the game itself doesn't need porting. What it runs
   you cut), which froze it for up to half a second. The patcher points the
   game's own calls at a fast version-4 GUID generator seeded once from the OS
   (`--fast-guid`); the IDs only need to be unique, not secret.
+- **Window queries:** the game asks for its window's position and display
+  every frame. On Haiku each of those SDL calls is a round trip to the
+  `app_server`, which cost several percent of every frame, so the patched
+  MonoGame caches them (moves, resizes and mode changes refresh the cache).
 - **Exception log:** `logs/exceptions.txt` records every .NET exception as
   it's thrown (via `StardewPatches.dll`, loaded before the game), so errors
   the game wraps (e.g. "Could not load … asset!") keep their real cause.
@@ -131,6 +135,7 @@ StardewValley/
 ├── get-game-steam.sh     download/update the game from Steam
 ├── gamepad.sh            set up a controller (writes gamecontrollerdb.txt)
 ├── tools/udp-relay.py    optional multiplayer relay for another machine
+├── tools/TraceReport/    summarises SDV_TRACE traces (see Performance)
 ├── build-native.sh       builds libs/ (called by setup.sh)
 ├── gamedata/             patched game files (yours)
 ├── steam-depot/          untouched Steam download (yours)
@@ -140,8 +145,8 @@ StardewValley/
 ├── overrides/ dlls/ tools/   Haiku MonoGame build, patcher, SMAPI bundle
 ├── licenses/             third-party licenses
 ├── log.txt               output of the last game run
-├── logs/exceptions.txt   every .NET exception from the last run
-├── logs/                 SDV_PROFILE / SDV_TRACE output (frame times, asset loads, trace report)
+├── logs/                 exceptions.txt (every .NET exception from the last run),
+│                         plus SDV_PROFILE / SDV_TRACE output
 └── VERSION               package version (include it in bug reports)
 ```
 
@@ -181,6 +186,11 @@ differences:
   `--roll-forward` and `--patch-steamkit` options; it accepts any 6.0.x
   runtime pack in the game files, not just 6.0.32. PortMaster defaults are
   unchanged.
+- **Haiku runtime fixes:** `--no-network-interfaces` (multiplayer networking)
+  and `--fast-guid` (tool-swing freezes), plus MonoGame patches for Haiku
+  detection, controllers present at startup, and cached window queries.
+- **Tools:** gamepad mapping (`gamepad.sh`), an exception log, and on-device
+  profiling (`SDV_PROFILE`, `SDV_TRACE`).
 - **No GL4ES or PortMaster tooling:** native OpenGL through Mesa, no gptokeyb.
 - **Setup and game download on the device** instead of copying from a PC.
 - **Build fix:** `bootstrap-monogame-thirdparty.sh` fetches the pinned NVorbis
@@ -221,6 +231,11 @@ Notes:
   `SDV_NO_GAMEPAD=1 ./StardewValley.sh` to ignore controllers entirely.
 - Stardew's controls follow the Xbox layout: map by button *position*
   (bottom face button = A), not by the letter printed on the controller.
+- Some XInput controllers (for example 8BitDo pads in X-input mode) expect
+  the host to send an initialisation command that Haiku's stock `usb_hid`
+  driver doesn't send; they can blink and switch themselves off after a
+  while. Reconnecting (or rebooting) brings them back. That's a driver
+  limitation, not something the port can work around.
 
 ## Multiplayer
 
@@ -369,6 +384,31 @@ trying large mods.
 - *"Native library not found" from a mod:* that mod ships platform-specific
   native code and won't work on Haiku.
 
+## Performance and profiling
+
+On the test machine the game runs at a steady 60 fps. The remaining short
+hitches come from first-time work: shaders compiling in the graphics driver,
+textures uploading when you enter a new area, and the game's own work at
+the start of a day.
+
+Two switches help find the cause when something stutters:
+
+```sh
+SDV_PROFILE=1 ./StardewValley.sh   # frame times and asset loads -> logs/*.csv
+SDV_TRACE=1 ./StardewValley.sh     # also a CPU trace -> logs/trace-report.txt
+```
+
+- `SDV_PROFILE=1` writes `logs/perf-latest.csv` (per-second stats),
+  `logs/slow-frame-latest.csv` (every frame over 25 ms, split into game
+  logic, drawing and presenting, with garbage-collection counts) and
+  `logs/content-load-latest.csv` (how long each asset took to load).
+- `SDV_TRACE=1` also records a .NET CPU-sampling trace (EventPipe). After
+  you quit, `tools/TraceReport` turns it into `logs/trace-report.txt`: the
+  call stacks the game's main thread was in during the slow frames,
+  including calls that were blocked waiting. Startup is slower while
+  tracing and the trace grows by a few MB per second, so keep traced
+  sessions to a few minutes.
+
 ## Troubleshooting
 
 | Symptom | Fix |
@@ -381,7 +421,8 @@ trying large mods.
 | Crash in `BTimeSource::GetTime` (debug report) | First check `log.txt` for an `Unhandled exception`; if there is one, that's the real problem and the media crash is a side effect. Otherwise it's the Haiku media kit race. Click **Terminate** in the debugger, then **Restart media & retry** in the launcher's prompt. If it keeps happening: `SDV_RESTART_MEDIA=1 ./StardewValley.sh` restarts them before every launch; `SDV_NO_AUDIO=1` plays without sound. |
 | Game doesn't start | Check `log.txt`. Re-patch with `SDV_FORCE_PATCH=1 ./StardewValley.sh`. Confirm `gamedata/` has `Stardew Valley.dll`. |
 | Controller does nothing in game | Run `./gamepad.sh`. If it says "NOT mapped", map it. If it lists no controller, check **Preferences → Joysticks**. Connect it before starting the game. |
-| Stutter | Run `SDV_PROFILE=1 ./StardewValley.sh`, play a few minutes where it stutters, and attach `logs/slow-frame-latest.csv`, `logs/perf-latest.csv` and `logs/content-load-latest.csv` to an issue. They show whether slow frames come from garbage collection, game logic, asset loading or presenting the frame. For long freezes, `SDV_TRACE=1 ./StardewValley.sh` also records a CPU-sampling trace and writes `logs/trace-report.txt`: the game's main-thread call stacks during the slow frames. Keep traced sessions to a few minutes; the trace grows by a few MB per second. |
+| Stutter or freezes | Play a few minutes with `SDV_TRACE=1 ./StardewValley.sh` where it happens, and attach `logs/trace-report.txt` and `logs/slow-frame-latest.csv` to an issue. See [Performance and profiling](#performance-and-profiling). |
+| Brief black screens in fullscreen | Try **Windowed Borderless** in the game's display options. It looks the same as fullscreen and may avoid them. |
 | Mods misbehave | `SDV_VANILLA=1 ./StardewValley.sh` to rule out the base game, then see [Mods](#mods-smapi). |
 
 Saves live in `~/.config/StardewValley/Saves`.
@@ -413,14 +454,16 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 - [x] Game launches on real Haiku hardware
 - [x] Setup script, Steam download, Deskbar entry
 - [x] Sound
+- [x] Gamepads (with a mapping from `gamepad.sh`)
+- [x] Smooth frame pacing (60 fps on the test machine)
 - [ ] Get the media kit time-source race fixed in Haiku
 - [ ] Confirm SMAPI/Harmony on Haiku
-- [ ] Gamepad testing
 - [ ] Confirm direct-IP multiplayer (host and join)
 - [ ] `.hpkg` package and HaikuDepot submission
 - [ ] GOG downloader alongside Steam
 - [ ] Upstream fixes: SteamKit2 (`PlatformNotSupportedException` fallback),
-      MonoGame Haiku support, .NET `NetworkInterface` on Haiku
+      MonoGame Haiku support, .NET on Haiku (`NetworkInterface`, slow
+      `Guid.NewGuid()`)
 
 ## Credits & license
 

@@ -13,7 +13,10 @@ containing your Steam password.
 | `haiku/` | Haiku launcher, setup, Steam downloader and build scripts |
 | `patches/monogame/` | Haiku patches for the MonoGame fork (Ms-PL) |
 | `build/src/MainlineGameDataPatcher/` | Patcher shared with the PortMaster build (Mono.Cecil) |
-| `build/src/native/` | Native shims (C) |
+| `build/src/native/` | Native shims and Haiku tools (C/C++) |
+| `build/src/StardewPatches.Mainline/` | Loaded before the game (`MONOGAME_PATCH`); writes the exception log |
+| `build/src/TraceReport/` | Summarises `SDV_TRACE` EventPipe traces (TraceEvent) |
+| `tools/udp-relay.py` | Optional multiplayer UDP relay |
 | `portmaster_stardewvalley_mainline/`, `build/scripts/`, `scripts/` | Upstream PortMaster package; keep it working |
 
 ## Building and testing
@@ -49,4 +52,4 @@ release with `StardewValley-haiku.zip`.
 
 Where possible, fix things upstream too: MonoGame Haiku support, the SteamKit2
 machine-ID fallback (`PlatformNotSupportedException`), and `NetworkInterface`
-in .NET for Haiku.
+and the slow `Guid.NewGuid()` in .NET for Haiku.
