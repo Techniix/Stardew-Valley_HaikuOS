@@ -22,7 +22,7 @@ LICENSE="MIT
 	Ms-PL"
 REVISION="1"
 SOURCE_URI="https://github.com/Techniix/Stardew-Valley_HaikuOS/releases/download/haiku-v$portVersion/StardewValley-haiku.zip"
-CHECKSUM_SHA256="UPDATE-AFTER-RELEASE"
+CHECKSUM_SHA256="3eafb4050ca5e5893ebe8249dd13499992c54c6ca44a541a67694afcb2187273"
 SOURCE_DIR="StardewValley"
 # The Haiku build of .NET (trungnt2910/dotnet-builds); only the runtime is
 # installed. Unpacked in INSTALL because the archive has no top-level folder.
