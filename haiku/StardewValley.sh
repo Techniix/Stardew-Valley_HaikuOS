@@ -33,7 +33,48 @@ esac
 cd "$DATADIR" || exit 1
 exec > >(tee "$DATADIR/log.txt") 2>&1
 
+# "Please wait" notice. The game keeps its window hidden until it has applied
+# its saved size and mode, so without this nothing seems to happen for a few
+# seconds. MonoGame creates MONOGAME_WINDOW_SHOWN_FILE once the window is on
+# screen; a background watcher then takes the notice down.
+# SDV_NO_LAUNCH_NOTICE=1 turns it off.
+notice_id="sdv-launch-$$"
+launch_notice() {  # <timeout seconds> <text>
+  notify --type information --group "Stardew Valley" --title "Stardew Valley" \
+    --messageID "$notice_id" --timeout "$1" "$2" >/dev/null 2>&1 || true
+}
+launch_notice_start() {
+  [ "${SDV_NO_LAUNCH_NOTICE:-0}" = 1 ] && return 0
+  command -v notify >/dev/null 2>&1 || return 0
+  shown_file="$(mktemp -u "${TMPDIR:-/tmp}/sdv-window-shown.XXXXXX")"
+  export MONOGAME_WINDOW_SHOWN_FILE="$shown_file"
+  launch_notice 90 "Launching Stardew Valley: please wait..."
+  (
+    # Up to 90 s; stop early if the launcher itself is gone.
+    i=0
+    while [ ! -e "$shown_file" ] && [ "$i" -lt 900 ] && kill -0 "$$" 2>/dev/null; do
+      sleep 0.1
+      i=$((i + 1))
+    done
+    rm -f "$shown_file"
+    launch_notice 1 "Launching Stardew Valley: please wait..."
+  ) &
+  notice_watcher=$!
+}
+launch_notice_stop() {  # the game exited or setup failed: take the notice down
+  [ -n "${notice_watcher:-}" ] || return 0
+  # If the watcher already finished, the notice is gone; don't bring it back.
+  if kill "$notice_watcher" 2>/dev/null; then
+    launch_notice 1 "Launching Stardew Valley: please wait..."
+  fi
+  wait "$notice_watcher" 2>/dev/null || true
+  notice_watcher=
+  rm -f "${shown_file:-}"
+  unset MONOGAME_WINDOW_SHOWN_FILE
+}
+
 fail() {
+  launch_notice_stop
   echo "ERROR: $*"
   if command -v alert >/dev/null 2>&1; then
     alert --stop "Stardew Valley: $*" "OK" >/dev/null
@@ -87,6 +128,7 @@ fi
 if [ ! -f "$DATADIR/gamedata/Stardew Valley.deps.json" ] || [ ! -f "$DATADIR/gamedata/Stardew Valley.runtimeconfig.json" ]; then
   fail "Incomplete game files in gamedata/ (deps.json or runtimeconfig.json missing)."
 fi
+launch_notice_start
 
 # --- vanilla or SMAPI? -------------------------------------------------------
 # Same rule as the PortMaster port: SMAPI starts automatically when Mods/
@@ -253,6 +295,7 @@ while :; do
   log_start=$(wc -l < "$DATADIR/log.txt" 2>/dev/null || echo 0)
   "$DOTNET" "$entry_assembly" "$@"
   status=$?
+  launch_notice_stop
   echo "Stardew Valley exited with status $status."
 
   # An unhandled .NET exception means the game itself failed; any media kit

@@ -27,6 +27,9 @@ Apply these to the `portmaster-stardew-mainline` branch of
    through several sizes. SDL2's Haiku backend shows new windows even when
    they're created hidden, so the patch hides each one again right after
    creating it. `MONOGAME_SHOW_WINDOW_EARLY=1` turns this off.
+8. `0008` If `MONOGAME_WINDOW_SHOWN_FILE` is set, create that file once the
+   window is on screen. The launcher uses it to take down its "please wait"
+   notification.
 
 
 These patches modify MonoGame source files and are licensed under the

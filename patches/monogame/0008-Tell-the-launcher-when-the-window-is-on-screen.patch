@@ -1,0 +1,73 @@
+From f0238a4f1f4b9655fec796c60bf201c8155e88ab Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 7 Nov 2026 22:22:08 -0500
+Subject: [PATCH] Tell the launcher when the window is on screen
+
+With the window kept hidden during startup, a launcher may show a
+"please wait" notice. If MONOGAME_WINDOW_SHOWN_FILE is set, create that
+file once the window is shown so the launcher can take the notice down.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01AVRp8nockFeWgKbb4pQJh9
+---
+ .../Platform/SDL/SDLGamePlatform.cs           | 23 +++++++++++++++++--
+ 1 file changed, 21 insertions(+), 2 deletions(-)
+
+diff --git a/MonoGame.Framework/Platform/SDL/SDLGamePlatform.cs b/MonoGame.Framework/Platform/SDL/SDLGamePlatform.cs
+index cf20ff44e..26d1cca6a 100644
+--- a/MonoGame.Framework/Platform/SDL/SDLGamePlatform.cs
++++ b/MonoGame.Framework/Platform/SDL/SDLGamePlatform.cs
+@@ -3,6 +3,7 @@
+ // file 'LICENSE.txt', which is part of this source code package.
+ 
+ using System;
++using System.IO;
+ using System.Collections.Generic;
+ using System.Diagnostics;
+ using System.Threading;
+@@ -100,6 +101,24 @@ namespace Microsoft.Xna.Framework
+             EndScreenDeviceChange(displayName, pp.BackBufferWidth, pp.BackBufferHeight);
+         }
+ 
++        // MONOGAME_WINDOW_SHOWN_FILE names a file to create once the window
++        // is on screen, so a launcher can take down its "please wait" notice.
++        private void ShowWindow()
++        {
++            Sdl.Window.Show(Window.Handle);
++            var marker = Environment.GetEnvironmentVariable("MONOGAME_WINDOW_SHOWN_FILE");
++            if (string.IsNullOrEmpty(marker))
++                return;
++            try
++            {
++                File.WriteAllText(marker, "");
++            }
++            catch (Exception)
++            {
++                // Only a convenience for the launcher.
++            }
++        }
++
+         public override void RunLoop()
+         {
+             // Stardew applies its saved window size and mode over its first
+@@ -112,7 +131,7 @@ namespace Microsoft.Xna.Framework
+                 && Environment.GetEnvironmentVariable("MONOGAME_SHOW_WINDOW_EARLY") != "1";
+             var shown = !deferShow;
+             if (shown)
+-                Sdl.Window.Show(Window.Handle);
++                ShowWindow();
+             var hiddenSince = Stopwatch.GetTimestamp();
+ 
+             while (true)
+@@ -130,7 +149,7 @@ namespace Microsoft.Xna.Framework
+                     var tooLong = now - hiddenSince > Stopwatch.Frequency * 5;
+                     if (settled || tooLong)
+                     {
+-                        Sdl.Window.Show(Window.Handle);
++                        ShowWindow();
+                         shown = true;
+                     }
+                     else
+-- 
+2.43.0
+

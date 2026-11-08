@@ -188,7 +188,9 @@ differences:
   unchanged.
 - **Haiku runtime fixes:** `--no-network-interfaces` (multiplayer networking)
   and `--fast-guid` (tool-swing freezes), plus MonoGame patches for Haiku
-  detection, controllers present at startup, and cached window queries.
+  detection, controllers present at startup, cached window queries, and a
+  clean startup (the window appears once, in its final size and mode, with a
+  "please wait" notification until then; `SDV_NO_LAUNCH_NOTICE=1` hides it).
 - **Tools:** gamepad mapping (`gamepad.sh`), an exception log, and on-device
   profiling (`SDV_PROFILE`, `SDV_TRACE`).
 - **No GL4ES or PortMaster tooling:** native OpenGL through Mesa, no gptokeyb.
