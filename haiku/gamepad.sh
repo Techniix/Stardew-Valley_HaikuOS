@@ -2,6 +2,7 @@
 # Set up a game controller for Stardew Valley on Haiku.
 #
 #   ./gamepad.sh          list controllers; offer to map an unmapped one
+#   ./gamepad.sh list     list controllers only
 #   ./gamepad.sh map [N]  map controller N (default 0)
 #   ./gamepad.sh test [N] show live input as the game sees it
 #   ./gamepad.sh raw [N]  show raw values SDL reads (diagnostics)
@@ -28,6 +29,7 @@ case "$cmd" in
   map)  exec "$TOOL" map "$DB" "$index" ;;
   test) exec "$TOOL" test "$DB" "$index" ;;
   raw)  exec "$TOOL" raw "$index" ;;
+  list) SDL_GAMECONTROLLERCONFIG_FILE="$DB" exec "$TOOL" list ;;
   "")
     export SDL_GAMECONTROLLERCONFIG_FILE="$DB"
     "$TOOL" list || exit 1
@@ -36,5 +38,5 @@ case "$cmd" in
     [ -n "$pick" ] || exit 0
     "$TOOL" map "$DB" "$pick" && "$TOOL" test "$DB" "$pick"
     ;;
-  *) sed -n 2,12p "$0"; exit 2 ;;
+  *) sed -n 2,13p "$0"; exit 2 ;;
 esac
