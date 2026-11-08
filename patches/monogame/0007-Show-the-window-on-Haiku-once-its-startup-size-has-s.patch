@@ -1,0 +1,99 @@
+From c10016cfb40ebfa74e632b0fed8a6e3492008a76 Mon Sep 17 00:00:00 2001
+From: Dalton Singleton <blumoon94@gmail.com>
+Date: Sat, 7 Nov 2026 22:12:38 -0500
+Subject: [PATCH] Show the window on Haiku once its startup size has settled
+
+Stardew applies its saved window size and mode over its first few
+updates, which on Haiku showed as a white window jumping between
+fullscreen and two windowed sizes. Keep the window hidden (and skip
+drawing) until its size has been stable for half a second, at most five
+seconds; SDL applies the final fullscreen mode once on show.
+MONOGAME_SHOW_WINDOW_EARLY=1 restores the old behaviour.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01AVRp8nockFeWgKbb4pQJh9
+---
+ .../Platform/SDL/SDLGamePlatform.cs           | 36 ++++++++++++++++++-
+ .../Platform/SDL/SDLGameWindow.cs             |  6 ++++
+ 2 files changed, 41 insertions(+), 1 deletion(-)
+
+diff --git a/MonoGame.Framework/Platform/SDL/SDLGamePlatform.cs b/MonoGame.Framework/Platform/SDL/SDLGamePlatform.cs
+index 1953c5baf..cf20ff44e 100644
+--- a/MonoGame.Framework/Platform/SDL/SDLGamePlatform.cs
++++ b/MonoGame.Framework/Platform/SDL/SDLGamePlatform.cs
+@@ -102,11 +102,45 @@ namespace Microsoft.Xna.Framework
+ 
+         public override void RunLoop()
+         {
+-            Sdl.Window.Show(Window.Handle);
++            // Stardew applies its saved window size and mode over its first
++            // few updates (default size, then the saved windowed size, then
++            // fullscreen). On Haiku each of those steps was visible as a white
++            // window jumping between sizes. Keep the window hidden, without
++            // drawing, until its size has been stable for a moment; SDL then
++            // applies the final mode once when the window is shown.
++            var deferShow = CurrentPlatform.OS == OS.Haiku
++                && Environment.GetEnvironmentVariable("MONOGAME_SHOW_WINDOW_EARLY") != "1";
++            var shown = !deferShow;
++            if (shown)
++                Sdl.Window.Show(Window.Handle);
++            var hiddenSince = Stopwatch.GetTimestamp();
+ 
+             while (true)
+             {
+                 SdlRunLoop();
++
++                if (!shown)
++                {
++                    var now = Stopwatch.GetTimestamp();
++                    // Quiet for half a second, counting from the later of the
++                    // last change and the start of the loop, so the game's
++                    // first updates (where it applies saved settings) run first.
++                    var lastChange = Math.Max(_view.LastScreenChangeTicks, hiddenSince);
++                    var settled = now - lastChange > Stopwatch.Frequency / 2;
++                    var tooLong = now - hiddenSince > Stopwatch.Frequency * 5;
++                    if (settled || tooLong)
++                    {
++                        Sdl.Window.Show(Window.Handle);
++                        shown = true;
++                    }
++                    else
++                    {
++                        // Nothing would be seen, and presenting to a hidden
++                        // window can block on some drivers.
++                        Game.SuppressDraw();
++                    }
++                }
++
+                 Game.Tick();
+                 Threading.Run();
+                 GraphicsDevice.DisposeContexts();
+diff --git a/MonoGame.Framework/Platform/SDL/SDLGameWindow.cs b/MonoGame.Framework/Platform/SDL/SDLGameWindow.cs
+index 3bc26fe9c..d59d2818e 100644
+--- a/MonoGame.Framework/Platform/SDL/SDLGameWindow.cs
++++ b/MonoGame.Framework/Platform/SDL/SDLGameWindow.cs
+@@ -233,8 +233,13 @@ namespace Microsoft.Xna.Framework
+             _willBeFullScreen = willBeFullScreen;
+         }
+ 
++        // When the window size or mode last changed (Stopwatch ticks). Used to
++        // keep the window hidden until the game has settled its startup size.
++        internal long LastScreenChangeTicks = System.Diagnostics.Stopwatch.GetTimestamp();
++
+         public override void EndScreenDeviceChange(string screenDeviceName, int clientWidth, int clientHeight)
+         {
++            LastScreenChangeTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+             _screenDeviceName = screenDeviceName;
+ 
+             InvalidatePosition();
+@@ -317,6 +322,7 @@ namespace Microsoft.Xna.Framework
+         public void ClientResize(int width, int height)
+         {
+             InvalidatePosition();
++            LastScreenChangeTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+             // SDL reports many resize events even if the Size didn't change.
+             // Only call the code below if it actually changed.
+             if (_game.GraphicsDevice.PresentationParameters.BackBufferWidth == width &&
+-- 
+2.43.0
+

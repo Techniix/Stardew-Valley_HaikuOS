@@ -22,6 +22,9 @@ Apply these to the `portmaster-stardew-mainline` branch of
    several times per frame; for a fullscreen window each read was an
    `app_server` round trip on Haiku. Moves, resizes and mode changes
    invalidate the cache.
+7. `0007` On Haiku, keep the window hidden until the game has finished applying
+   its saved window size and mode, so startup doesn't flash a white window
+   through several sizes. `MONOGAME_SHOW_WINDOW_EARLY=1` turns this off.
 
 
 These patches modify MonoGame source files and are licensed under the
