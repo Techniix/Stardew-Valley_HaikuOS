@@ -98,6 +98,14 @@ platform-neutral .NET, so the game itself doesn't need porting. What it runs
   executable's folder (`dotnet/`) when started from Deskbar/Tracker (no
   `TERM` set). The game loads some content via relative paths, so that broke
   Deskbar launches. The launcher sets `TERM` so SDL leaves it alone.
+- **Clean exit:** MonoGame closes the audio device before the process exits
+  on Haiku (patch `0005`). Without that, Haiku's media kit was torn down
+  under OpenAL's playback thread and quitting the game ended in a segfault.
+- **Multiplayer networking:** Haiku's .NET doesn't implement
+  `System.Net.NetworkInformation`, which the game's networking library
+  (Lidgren) calls when it starts a connection, so joining by IP crashed. The
+  patcher replaces those lookups (used for LAN broadcast and peer IDs) with
+  safe fallbacks (`--no-network-interfaces`).
 - **Exception log:** `logs/exceptions.txt` records every .NET exception as
   it's thrown (via `StardewPatches.dll`, loaded before the game), so errors
   the game wraps (e.g. "Could not load … asset!") keep their real cause.

@@ -97,6 +97,7 @@ patcher_args=(
   --runtime-target ".NETCoreApp,Version=v6.0/haiku-x64"
   --framework-version "$runtime_version"
   --roll-forward LatestMajor
+  --no-network-interfaces   # Haiku's .NET lacks NetworkInformation (multiplayer)
 )
 entry_assembly="Stardew Valley.dll"
 patch_assembly="$GAMEDIR/dlls/StardewPatches.dll"

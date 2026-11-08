@@ -12,6 +12,12 @@ if (args.Length == 2 && args[0] == "--patch-steamkit")
     return PatchSteamKit(args[1]);
 }
 
+if (args.Length == 2 && args[0] == "--patch-lidgren")
+{
+    PatchLidgrenNetworkInterfaces(Path.GetFullPath(args[1]));
+    return 0;
+}
+
 if (!TryParseArguments(args, out var gameDir, out var overlayDir, out var smapiBundleDir, out var smapiPatchAssembly, out var modsDir))
 {
     Console.Error.WriteLine("Usage: MainlineGameDataPatcher --game-dir <path> --overlay-dir <path> [--smapi-bundle-dir <path>] [--smapi-patch-assembly <path>] [--mods-dir <path>] [--runtime-target <tfm/rid>] [--framework-version <version>] [--roll-forward <policy>] [--profile handheld|desktop]");
@@ -45,6 +51,10 @@ CopyOverlayFiles(overlayDir, gameDir);
 PrepareOptionalSmapiRuntime(gameDir, depsPath, smapiBundleDir, smapiPatchAssembly);
 AlignGameAssemblyVersionsForSmapi(gameDir);
 PatchGameAssemblyMethods(gameDir);
+if (PortConfig.NoNetworkInterfaces)
+{
+    PatchLidgrenNetworkInterfaces(gameDir);
+}
 NormalizeManagedAssemblies(gameDir);
 NormalizeManagedAssemblies(modsDir, SearchOption.AllDirectories);
 
@@ -86,6 +96,9 @@ static bool TryParseArguments(string[] args, out string gameDir, out string over
                 break;
             case "--roll-forward" when i + 1 < args.Length:
                 PortConfig.RollForward = args[++i];
+                break;
+            case "--no-network-interfaces":
+                PortConfig.NoNetworkInterfaces = true;
                 break;
             case "--profile" when i + 1 < args.Length:
                 var profile = args[++i];
@@ -1352,10 +1365,129 @@ static int PatchSteamKit(string steamKitPath)
     return 0;
 }
 
+// Lidgren (the game's direct-IP/LAN networking library) looks up network
+// interfaces via System.Net.NetworkInformation, which some .NET ports (Haiku)
+// don't implement: IPGlobalProperties.GetIPGlobalProperties() throws
+// PlatformNotSupportedException as soon as a NetPeerConfiguration is
+// created, so joining or hosting by IP crashes. Those lookups only feed LAN
+// broadcast discovery and the peer's unique identifier; direct connections
+// don't need them. Replace every NetUtility method that touches
+// NetworkInformation with a safe fallback.
+static void PatchLidgrenNetworkInterfaces(string gameDir)
+{
+    var candidates = new[] { "Lidgren.Network.dll", "Stardew Valley.dll" };
+    foreach (var fileName in candidates)
+    {
+        var path = Path.Combine(gameDir, fileName);
+        if (!File.Exists(path))
+            continue;
+
+        var resolver = new DefaultAssemblyResolver();
+        resolver.AddSearchDirectory(gameDir);
+        using var assembly = AssemblyDefinition.ReadAssembly(path, new ReaderParameters
+        {
+            InMemory = true,
+            ReadSymbols = false,
+            AssemblyResolver = resolver,
+        });
+        var module = assembly.MainModule;
+        var netUtility = module.GetType("Lidgren.Network.NetUtility");
+        if (netUtility is null)
+            continue;
+
+        var patched = new List<string>();
+        foreach (var method in netUtility.Methods.Where(m => m.HasBody))
+        {
+            var usesNetworkInformation = method.Body.Instructions.Any(i =>
+                i.Operand is MethodReference r &&
+                r.DeclaringType.Namespace == "System.Net.NetworkInformation");
+            if (!usesNetworkInformation)
+                continue;
+
+            if (!TryWriteFallbackBody(method, module))
+            {
+                Console.WriteLine($"Lidgren: left {method.FullName} unchanged (unexpected signature)");
+                continue;
+            }
+            patched.Add(method.Name);
+        }
+
+        if (patched.Count == 0)
+        {
+            Console.WriteLine($"Lidgren: nothing to patch in {fileName} (already patched)");
+            return;
+        }
+
+        var tempPath = path + ".lidgren.tmp";
+        assembly.Write(tempPath, new WriterParameters { WriteSymbols = false });
+        File.Move(tempPath, path, overwrite: true);
+        Console.WriteLine($"Lidgren: network-interface lookups replaced in {fileName}: {string.Join(", ", patched)}");
+        return;
+    }
+
+    Console.WriteLine("Lidgren: Lidgren.Network.NetUtility not found; multiplayer by IP may fail");
+}
+
+static bool TryWriteFallbackBody(MethodDefinition method, ModuleDefinition module)
+{
+    var returnType = method.ReturnType;
+    var instructions = new List<Instruction>();
+
+    // out parameters: assign null / default
+    foreach (var parameter in method.Parameters.Where(p => p.IsOut))
+    {
+        var elementType = ((ByReferenceType)parameter.ParameterType).ElementType;
+        if (elementType.IsValueType)
+            return false;
+        instructions.Add(Instruction.Create(OpCodes.Ldarg, parameter));
+        instructions.Add(Instruction.Create(OpCodes.Ldnull));
+        instructions.Add(Instruction.Create(OpCodes.Stind_Ref));
+    }
+
+    switch (returnType.FullName)
+    {
+        case "System.Void":
+            break;
+        case "System.Boolean":
+            instructions.Add(Instruction.Create(OpCodes.Ldc_I4_0));
+            break;
+        case "System.Net.IPAddress" when method.Name.Contains("Broadcast"):
+            // 255.255.255.255: LAN discovery still works on most networks
+            // Reuse the assembly's own IPAddress reference so the patched
+            // code binds to the same framework assembly the game already uses.
+            instructions.Add(Instruction.Create(OpCodes.Ldsfld,
+                new FieldReference("Broadcast", returnType, returnType)));
+            break;
+        default:
+            if (returnType.IsArray)
+            {
+                instructions.Add(Instruction.Create(OpCodes.Ldc_I4_0));
+                instructions.Add(Instruction.Create(OpCodes.Newarr, ((ArrayType)returnType).ElementType));
+            }
+            else if (!returnType.IsValueType)
+            {
+                instructions.Add(Instruction.Create(OpCodes.Ldnull));
+            }
+            else
+            {
+                return false;
+            }
+            break;
+    }
+
+    ResetMethodBody(method);
+    var il = method.Body.GetILProcessor();
+    foreach (var instruction in instructions)
+        il.Append(instruction);
+    il.Append(il.Create(OpCodes.Ret));
+    return true;
+}
+
 static class PortConfig
 {
     public static string RuntimeTarget = ".NETCoreApp,Version=v6.0/linux-arm64";
     public static string FrameworkVersion = string.Empty;
     public static string RollForward = string.Empty;
     public static bool Desktop;
+    public static bool NoNetworkInterfaces;
 }
